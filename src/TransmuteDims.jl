@@ -2,7 +2,7 @@ module TransmuteDims
 
 export TransmutedDimsArray, Transmute, transmutedims, transmutedims!
 
-struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray} <: AbstractArray{T,N}
+struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray,L} <: AbstractArray{T,N}
     parent::AA
 end
 
@@ -33,8 +33,8 @@ TransmutedDimsArray(data::AbstractArray, perm) = Transmute{Tuple(perm)}(data)
 """
     Transmute{perm′}(A)
 
-Equivalent to `TransmutedDimsArray(A, perm′)`, but computes the inverse etc.
-at compile-time.
+Equivalent to `TransmutedDimsArray(A, perm′)`, but computes the inverse
+(and performs sanity checks) at compile-time.
 """
 struct Transmute{perm} end
 
@@ -47,8 +47,9 @@ struct Transmute{perm} end
 
     N = length(perm_plus)
     iperm = invperm_zero(perm, M)
+    L = issorted(real_perm)
 
-    :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A}(data) )
+    :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A,$L}(data) )
 end
 
 Base.parent(A::TransmutedDimsArray) = A.parent
@@ -59,17 +60,22 @@ Base.size(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
 Base.axes(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
     genperm_zero(axes(parent(A)), perm, Base.OneTo(1))
 
-# Base.unsafe_convert(::Type{Ptr{T}}, A::TransmutedDimsArray{T}) where {T} = Base.unsafe_convert(Ptr{T}, parent(A))
+Base.unsafe_convert(::Type{Ptr{T}}, A::TransmutedDimsArray{T}) where {T} =
+    Base.unsafe_convert(Ptr{T}, parent(A))
 
 # It's OK to return a pointer to the first element, and indeed quite
 # useful for wrapping C routines that require a different storage
 # order than used by Julia. But for an array with unconventional
 # storage order, a linear offset is ambiguous---is it a memory offset
 # or a linear index?
-# Base.pointer(A::TransmutedDimsArray, i::Integer) = throw(ArgumentError("pointer(A, i) is deliberately unsupported for TransmutedDimsArray"))
+Base.pointer(A::TransmutedDimsArray, i::Integer) = throw(ArgumentError(
+    "pointer(A, i) is deliberately unsupported for TransmutedDimsArray"))
 
 Base.strides(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
     genperm_zero(strides(parent(A)), perm, 0)
+
+Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
+    L ? IndexLinear() : IndexCartesian()
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
@@ -77,21 +83,24 @@ Base.strides(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
     val
 end
 
+@inline Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S} =
+    getindex(A.parent, i)
+
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
     @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
 
+@inline Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S} =
+    setindex!(A.parent, val, i)
+
 @inline genperm_zero(I::Tuple, perm::Dims{N}, gap=1) where {N} =
     ntuple(d -> perm[d]==0 ? gap : I[perm[d]], Val(N))
-# @inline genperm_zero(I, perm::AbstractVector{Int}) = genperm_zero(I, Tuple(perm))
 
 @inline invperm_zero(P::Tuple, M::Int) = ntuple(d -> findfirst(isequal(d),P), M)
-# @inline invperm_zero(P, M::Int) = invperm_zero(Tuple(P), M)
 
-@inline sanitise(P::Tuple, M::Int) = map(i -> 0<i<=M ? i : 0, P)
-# @inline sanitise(P,M::Int) = sanitise(Tuple(P), M)
+@inline sanitise(P::Tuple, M::Int) = map(i -> i in Base.OneTo(M) ? i : 0, P)
 
 # https://github.com/JuliaLang/julia/pull/32968
 filter(f, xs::Tuple) = Base.afoldl((ys, x) -> f(x) ? (ys..., x) : ys, (), xs...)
@@ -123,8 +132,8 @@ end
 
 #=
 TODO:
-- Linear indexing flag
-- Efficient reductions
+* Efficient reductions
+* transmutedims as permutedims + reshape
 =#
 
 end

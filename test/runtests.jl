@@ -1,8 +1,32 @@
 using TransmuteDims, Random, Test
 
-@testset "new" begin
+@testset "new features" begin
 
-    @test true
+    m = rand(1:99, 3,4)
+    @test transmutedims(m, (1,0,2)) == reshape(m, 3,1,4)
+    @test transmutedims(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
+    @test Transmute{(1,0,2)}(m) == reshape(m, 3,1,4)
+    @test Transmute{(1,999,2)}(m) == reshape(m, 3,1,4)
+    @test Transmute{(1,nothing,2)}(m) == reshape(m, 3,1,4)
+
+    g = Transmute{(1,0,2)}(m)
+    t = Transmute{(2,0,1)}(m)
+
+    # setindex!
+    g[3,1,4] = 222
+    @test m[3,4] == 222
+    t[2,1,3] = 333
+    @test m[3,2] == 333
+
+    # linear indexing
+    @test Base.IndexStyle(g) == IndexLinear()
+    @test Base.IndexStyle(t) == IndexCartesian()
+    g[4] = 444
+    @test m[4] == 444
+    t[5] = 555
+    @test transpose(m)[5] == 555
+
+    @test_throws ArgumentError TransmutedDimsArray(m, (2,0,1,0,2))
 
 end
 @testset "permutedims from Base" begin
@@ -49,8 +73,8 @@ end
     @test_throws ArgumentError TransmutedDimsArray(a, (1,1,1))
     @test_throws ArgumentError TransmutedDimsArray(s, (1,1,1))
     cp = TransmutedDimsArray(c, (3,2,1))
-    # @test pointer(cp) == pointer(c)
-    # @test_throws ArgumentError pointer(cp, 2)
+    @test pointer(cp) == pointer(c)
+    @test_throws ArgumentError pointer(cp, 2)
     @test strides(cp) == (9,3,1)
     ap = TransmutedDimsArray(Array(a), (2,1,3))
     @test strides(ap) == (3,1,12)
