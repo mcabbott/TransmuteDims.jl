@@ -28,6 +28,25 @@ using TransmuteDims, Random, Test
 
     @test_throws ArgumentError TransmutedDimsArray(m, (2,0,1,0,2))
 
+    # unwrapping
+    @test Transmute{(2,0,1)}(m') === Transmute{(1,0,2)}(m)
+    v = m[:,1]
+    @test Transmute{(2,3,1)}(v |> transpose) === Transmute{(1,0,0)}(v)
+
+    @test Transmute{(2,nothing,1)}(PermutedDimsArray(m,(2,1))) === Transmute{(1,0,2)}(m)
+    @test Transmute{(2,nothing,1)}(TransmutedDimsArray(m,(2,1))) === Transmute{(1,0,2)}(m)
+
+    x = rand(1:99, 5,4,3,2);
+    x1 = permutedims(x, (4,1,2,3))
+    x2 = PermutedDimsArray(x, (4,1,2,3))
+    @test x1 == x2
+    @test TransmutedDimsArray(x1, (2,4,1,3)) == TransmutedDimsArray(x2, (2,4,1,3))
+    @test TransmutedDimsArray(x1, (2,0,1,4,3)) == TransmutedDimsArray(x2, (2,0,1,4,3))
+
+    x3 = TransmutedDimsArray(x, (4,1,2,3));
+    @test TransmutedDimsArray(x1, (2,4,1,3)) == TransmutedDimsArray(x3, (2,4,1,3))
+    @test TransmutedDimsArray(x1, (2,0,1,4,3)) == TransmutedDimsArray(x3, (2,0,1,4,3))
+
 end
 @testset "permutedims from Base" begin
     # keeps the num of dim

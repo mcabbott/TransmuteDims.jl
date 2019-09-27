@@ -25,7 +25,8 @@ Here `(4,2,3,5,1)` is a valid permutation of `1:5`, but the positions of `4,5` d
 so `(0,2,3,0,1)` is treated identically. Things like `(nothing,2,3,nothing,1)` are also allowed.
 
 The lazy `TransmutedDimsArray` similarly extends `PermutedDimsArray`,
-except that where possible it supports linear indexing.
+except that where possible it supports linear indexing,
+and it is smart enough to unwrap `transpose(A)` by altering the permutation.
 Calling `Transmute{perm}(A)` will avoid creation overhead:
 
 ```julia
@@ -34,3 +35,7 @@ using BenchmarkTools
 
 @btime size(Transmute{(0,2,3,0,1)}(A))       #   1.327 ns
 ```
+
+Perhaps there are other uses, but the motivation for this 
+in [NamedPlus.jl](https://github.com/mcabbott/NamedPlus.jl) is to align arrays for broadcasting
+according to their axis names, not positions. 

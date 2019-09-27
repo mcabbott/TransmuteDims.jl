@@ -31,7 +31,7 @@ const cM1 = randn(1000,1000);
 
 @btime sum($M1)                              #   290.741 μs
 @btime sum($(PermutedDimsArray(M2,(1,2))))   # 1.399 ms
-@btime sum($(TransmutedDimsArray(M2,(1,2)))) # 1.399 ms -- could be faster!
+@btime sum($(TransmutedDimsArray(M2,(1,2)))) # 1.097 ms -- could be faster!
 @btime sum($(transpose(M2)))                 # 2.341 ms
 @btime sum($(PermutedDimsArray(M2,(2,1))))   # 2.450 ms
 
@@ -67,7 +67,10 @@ G3 == G4 == G5
 
 @btime $T3 .= $T1 .* $G3;  # 1.900 ms
 @btime $T3 .= $T1 .* $G4;  #   696.364 μs
-@btime $T3 .= $T1 .* $G5;  #   689.818 μs -- no penalty!
+@btime $T3 .= $T1 .* $G5;  #   687.152 μs
+
+summary(G5) # Transpose now unwrapped
+G5 === G4
 
 # Copies
 

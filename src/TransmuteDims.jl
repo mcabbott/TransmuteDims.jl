@@ -41,7 +41,6 @@ struct Transmute{perm} end
 Transmute{perm}(x) where {perm} = x
 
 @generated function Transmute{perm}(data::A) where {A<:AbstractArray{T,M}} where {T,M,perm}
-
     perm_plus = sanitise_zero(perm, data)
     real_perm = filter(!iszero, perm_plus)
     length(real_perm) == M && isperm(real_perm) || throw(ArgumentError(
@@ -52,6 +51,23 @@ Transmute{perm}(x) where {perm} = x
     L = issorted(real_perm)
 
     :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A,$L}(data) )
+end
+
+using LinearAlgebra
+const LazyTranspose = Union{Transpose{<:Number}, Adjoint{<:Real}}
+
+@generated function Transmute{perm}(data::LazyTranspose) where {perm}
+    new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
+    :( Transmute{$new_perm}(data.parent) )
+end
+
+LazyPermute{P} = Union{
+    PermutedDimsArray{T,N,P} where {T,N},
+    TransmutedDimsArray{T,N,P}  where {T,N} }
+
+@generated function Transmute{perm}(data::LazyPermute{inner}) where {perm,inner}
+    new_perm = map(d -> d==0 ? 0 : inner[d], sanitise_zero(perm, data))
+    :( Transmute{$new_perm}(data.parent) )
 end
 
 Base.parent(A::TransmutedDimsArray) = A.parent
