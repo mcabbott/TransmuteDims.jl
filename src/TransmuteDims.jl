@@ -31,22 +31,24 @@ true
 TransmutedDimsArray(data::AbstractArray, perm) = Transmute{Tuple(perm)}(data)
 
 """
-    Transmute{perm′}(A)
+    Transmute{perm′}(A::AbstractArray)
 
 Equivalent to `TransmutedDimsArray(A, perm′)`, but computes the inverse
 (and performs sanity checks) at compile-time.
 """
 struct Transmute{perm} end
 
+Transmute{perm}(x) where {perm} = x
+
 @generated function Transmute{perm}(data::A) where {A<:AbstractArray{T,M}} where {T,M,perm}
 
-    perm_plus = sanitise(perm, M)
+    perm_plus = sanitise_zero(perm, data)
     real_perm = filter(!iszero, perm_plus)
     length(real_perm) == M && isperm(real_perm) || throw(ArgumentError(
         string(real_perm, " is not a valid permutation of dimensions 1:", M)))
 
     N = length(perm_plus)
-    iperm = invperm_zero(perm, M)
+    iperm = invperm_zero(perm_plus, M)
     L = issorted(real_perm)
 
     :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A,$L}(data) )
@@ -100,7 +102,7 @@ end
 
 @inline invperm_zero(P::Tuple, M::Int) = ntuple(d -> findfirst(isequal(d),P), M)
 
-@inline sanitise(P::Tuple, M::Int) = map(i -> i in Base.OneTo(M) ? i : 0, P)
+@inline sanitise_zero(P::Tuple, A) = map(i -> i in Base.OneTo(ndims(A)) ? i : 0, P)
 
 # https://github.com/JuliaLang/julia/pull/32968
 filter(f, xs::Tuple) = Base.afoldl((ys, x) -> f(x) ? (ys..., x) : ys, (), xs...)
@@ -131,9 +133,63 @@ function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where 
 end
 
 #=
+
 TODO:
-* Efficient reductions
-* transmutedims as permutedims + reshape
+* Efficient reductions?
+* transmutedims as permutedims + reshape, on DenseArray
+* Transmute shortcuts?
+
 =#
+
+using GPUArrays
+# https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/broadcast.jl
+
+using Base.Broadcast
+import Base.Broadcast: BroadcastStyle, Broadcasted, ArrayStyle
+
+TransmuteGPU{AT} = TransmutedDimsArray{T,N,P,Q,AT,L} where {T,N,P,Q,L}
+
+BroadcastStyle(::Type{<:TransmuteGPU{AT}}) where {AT<:GPUArray} =
+    BroadcastStyle(AT)
+
+GPUArrays.backend(::Type{<:TransmuteGPU{AT}}) where {AT<:GPUArray} =
+    GPUArrays.backend(AT)
+
+@inline function Base.copyto!(dest::TransmuteGPU, bc::Broadcasted{Nothing})
+    axes(dest) == axes(bc) || Broadcast.throwdm(axes(dest), axes(bc))
+    bc′ = Broadcast.preprocess(dest, bc)
+    gpu_call(dest, (dest, bc′)) do state, dest, bc′
+        let I = CartesianIndex(@cartesianidx(dest))
+            @inbounds dest[I] = bc′[I]
+        end
+        return
+    end
+
+    return dest
+end
+
+@inline Base.copyto!(dest::TransmuteGPU, bc::Broadcasted{<:Broadcast.AbstractArrayStyle{0}}) =
+    copyto!(dest, convert(Broadcasted{Nothing}, bc))
+
+# https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/abstractarray.jl#L53
+# display
+Base.print_array(io::IO, X::TransmuteGPU{AT} where {AT <: GPUArray}) =
+    Base.print_array(io, GPUArrays.cpu(X))
+
+# show
+Base._show_nonempty(io::IO, X::TransmuteGPU{AT} where {AT <: GPUArray}, prefix::String) =
+    Base._show_nonempty(io, GPUArrays.cpu(X), prefix)
+Base._show_empty(io::IO, X::TransmuteGPU{AT} where {AT <: GPUArray}) =
+    Base._show_empty(io, GPUArrays.cpu(X))
+Base.show_vector(io::IO, v::TransmuteGPU{AT} where {AT <: GPUArray}, args...) =
+    Base.show_vector(io, GPUArrays.cpu(X), args...)
+
+using Adapt
+# https://github.com/JuliaGPU/Adapt.jl/blob/master/src/base.jl
+
+function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT,L}) where {T,N,P,Q,AT,L}
+    data = adapt(to, A.parent)
+    TransmutedDimsArray{eltype(data),N,P,Q,typeof(data),L}(data)
+end
 
 end
