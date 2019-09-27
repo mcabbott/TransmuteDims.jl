@@ -33,7 +33,7 @@ Calling `Transmute{perm}(A)` will avoid creation overhead:
 using BenchmarkTools
 @btime size(PermutedDimsArray($A, (2,3,1)))  # 644.509 ns
 
-@btime size(Transmute{(0,2,3,0,1)}(A))       #   1.327 ns
+@btime size(Transmute{(0,2,3,0,1)}($A))      #   1.327 ns
 ```
 
 Perhaps there are other uses, but the motivation for this 
