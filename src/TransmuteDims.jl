@@ -2,6 +2,8 @@ module TransmuteDims
 
 export TransmutedDimsArray, Transmute, transmutedims, transmutedims!
 
+#========== alla PermutedDimsArrays, mostly ==========#
+
 struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray,L} <: AbstractArray{T,N}
     parent::AA
 end
@@ -44,7 +46,8 @@ Transmute{perm}(x) where {perm} = x
     perm_plus = sanitise_zero(perm, data)
     real_perm = filter(!iszero, perm_plus)
     length(real_perm) == M && isperm(real_perm) || throw(ArgumentError(
-        string(real_perm, " is not a valid permutation of dimensions 1:", M)))
+        string(real_perm, " is not a valid permutation of dimensions 1:", M,
+            ". Obtained by filtering input ",perm)))
 
     N = length(perm_plus)
     iperm = invperm_zero(perm_plus, M)
@@ -148,6 +151,7 @@ function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where 
     toplevel && print(io, " with eltype ", eltype(A))
 end
 
+#========== GPU etc ==========#
 #=
 
 TODO:
@@ -206,6 +210,66 @@ using Adapt
 function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT,L}) where {T,N,P,Q,AT,L}
     data = adapt(to, A.parent)
     TransmutedDimsArray{eltype(data),N,P,Q,typeof(data),L}(data)
+end
+
+#========== Other Base functions ==========#
+
+Base.dropdims(A::TransmutedDimsArray; dims) = _dropdims(A, dims...)
+
+_dropdims(A) = A
+function _dropdims(A::TransmutedDimsArray{T,N,P}, d::Int, dims...) where {T,N,P}
+    if P[d]==0
+        perm = ntuple(n -> n<d ? P[n] : P[n+1], N-1)
+        _dropdims(Transmute{perm}(A.parent), dims...)
+    else
+        perm = ntuple(N-1) do n
+            if n<d
+                P[n]<d ? P[n] : P[n]-1
+            else
+                P[n+1]<d ? P[n+1] : P[n+1]-1
+            end
+        end
+        _dropdims(Transmute{perm}(dropdims(A.parent, dims=P[d])), dims...)
+    end
+end
+
+#=
+
+@btime        dropdims($(Transmute{(2,0,1)}(rand(3,3))), dims=2)
+@code_warntype dropdims(Transmute{(2,0,1)}(rand(3,3)), dims=2)
+
+@btime        dropdims($(Transmute{(3,2,1)}(rand(3,1,3))), dims=2)
+@code_warntype dropdims(Transmute{(3,2,1)}(rand(3,1,3)), dims=2)
+
+=#
+
+#=
+# piracy!
+
+for N=3:15
+    @eval Base.transpose(x::AbstractArray{<:Number,$N}; dims) = _transpose(x, Tuple(dims))
+    # @eval Base.transpose(x::AbstractArray{<:Number,$N}; dims) = _transpose(x, Val(Tuple(dims)))
+end
+
+@btime transpose($(rand(2,2,2,2)), dims=(2,3)) # 3.686 μs with Val, 259.155 ns without!
+
+@btime TransmuteDims._transpose($(rand(2,2,2,2)), (2,3))      # 262.377 ns
+@btime TransmuteDims._transpose($(rand(2,2,2,2)), Val((2,3))) #   5.617 ns
+
+=#
+
+function _transpose(x::AbstractArray{<:Number}, dims::Tuple{Int,Int})
+    lo, hi = minimum(dims), maximum(dims)
+    # hi <= ndims(x) || error("dims too large")
+    perm = ntuple(d -> d==lo ? hi : d==hi ? lo : d, ndims(x))
+    # TransmutedDimsArray{eltype(x),ndims(x),perm,perm,typeof(x),IndexStyle(x)===IndexLinear()}(x)
+    Transmute{perm}(x)
+end
+
+@generated function _transpose(x::AbstractArray, ::Val{dims}) where {dims}
+    lo, hi = minimum(dims), maximum(dims)
+    perm = ntuple(d -> d==lo ? hi : d==hi ? lo : d, ndims(x))
+    :( Transmute{$perm}(x) )
 end
 
 end
