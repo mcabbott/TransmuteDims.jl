@@ -45,8 +45,8 @@ true
 """
 TransmutedDimsArray(data::AbstractArray, perm) = Transmute{Tuple(perm)}(data)
 
-# perm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = P
-# iperm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = Q
+perm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = P
+iperm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = Q
 
 """
     Transmute{perm′}(A::AbstractArray)

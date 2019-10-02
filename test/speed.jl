@@ -1,5 +1,5 @@
 
-using TransmuteDims, BenchmarkTools
+using TransmuteDims, BenchmarkTools # All times Julia 1.2, Macbook Escape
 
 M1 = randn(1000,1000);
 M2 = randn(1000,1000);
@@ -21,17 +21,25 @@ const cM1 = randn(1000,1000);
 
 @btime $M3 .= $M1 .* $M2;                              # 766.213 μs
 @btime $M3 .= $M1 .* $(PermutedDimsArray(M2,(1,2)));   # 769.648 μs
-@btime $M3 .= $M1 .* $(TransmutedDimsArray(M2,(1,2))); # 769.523 μs
+@btime $M3 .= $M1 .* $(TransmutedDimsArray(M2,(1,2))); # 769.523 μs with IndexCartesian()
+@btime $M3 .= $M1 .* $(TransmutedDimsArray(M2,(1,2))); # 857.322 μs with IndexLinear()
 
 @btime $M3 .= $M1 .* transpose($M2);                 # 2.179 ms
 @btime $M3 .= $M1 .* PermutedDimsArray($M2,(2,1));   # 2.186 ms
 @btime $M3 .= $M1 .* $(PermutedDimsArray(M2,(2,1))); # 2.179 ms
 
+@btime $M3 .= $M1 .* transpose($(PermutedDimsArray(M2,(2,1)))); # 767.724 μs
+@btime $M3 .= $M1 .* $(PermutedDimsArray(transpose(M2),(2,1))); # 769.943 μs
+
+
 # Reductions
 
 @btime sum($M1)                              #   290.741 μs
 @btime sum($(PermutedDimsArray(M2,(1,2))))   # 1.399 ms
-@btime sum($(TransmutedDimsArray(M2,(1,2)))) # 1.097 ms -- could be faster!
+@btime sum($(TransmutedDimsArray(M2,(1,2)))) # 1.399 ms with IndexCartesian()
+@btime sum($(TransmutedDimsArray(M2,(1,2)))) # 1.097 ms with IndexLinear()
+@btime sum($(TransmutedDimsArray(M2,(1,2)))) #   293.250 μs with method!
+
 @btime sum($(transpose(M2)))                 # 2.341 ms
 @btime sum($(PermutedDimsArray(M2,(2,1))))   # 2.450 ms
 
@@ -45,10 +53,16 @@ T1 = randn(100,100,100);
 T2 = randn(100,100,100);
 T3 = similar(T1);
 
-@btime $T3 .= $T1 .* $T2;                              # 766.960 μs
-@btime $T3 .= $T1 .* $(PermutedDimsArray(T2,(1,2,3))); # 758.425 μs
+@btime $T3 .= $T1 .* $T2;                                # 766.960 μs
+@btime $T3 .= $T1 .* $(PermutedDimsArray(T2,(1,2,3)));   # 758.425 μs
+@btime $T3 .= $T1 .* $(TransmutedDimsArray(T2,(1,2,3))); # 757.789 μs with IndexCartesian()
+@btime $T3 .= $T1 .* $(TransmutedDimsArray(T2,(1,2,3))); # 919.709 μs with IndexLinear()
 
-@btime $T3 .= $T1 .* $(PermutedDimsArray(T2,(3,2,1))); # 2.912 ms
+@btime $T3 .= $T1 .* $(PermutedDimsArray(T2,(3,2,1)));   # 2.912 ms
+
+# repeat those when passing unused kw... along, owch.
+@btime $T3 .= $T1 .* $(TransmutedDimsArray(T2,(1,2,3))); # 920.303 μs
+@btime $T3 .= $T1 .* $(TransmutedDimsArray(T2,(3,2,1))); # 3.265 ms
 
 # Gap insertion
 
@@ -89,3 +103,15 @@ G5 === G4
 
 @btime permutedims!($T3, $T1, (3,2,1));            # 2.312 ms
 @btime copy!($T3, PermutedDimsArray($T1,(3,2,1))); # 3.675 ms
+
+# Inference
+
+@code_warntype (x -> PermutedDimsArray(x, (2, 1)))(M1)
+# Body::PermutedDimsArray{Float64,2,_A,_B,Array{Float64,2}} where _B where _A
+@code_warntype (x -> TransmutedDimsArray(x, (2, 1)))(M1)
+# Body::Any
+@code_warntype (x -> Transmute{(2,1)}(x))(M1)
+# Body::TransmutedDimsArray{Float64,2,(2, 1),(2, 1),Array{Float64,2},false}
+
+@code_warntype (() -> Val(invperm((2,1))))()
+# Body::Val{(2, 1)}
