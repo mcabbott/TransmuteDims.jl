@@ -26,7 +26,23 @@ using TransmuteDims, Random, Test
     t[5] = 555
     @test transpose(m)[5] == 555
 
+    # dropdims
+    @test dropdims(g, dims=2) == m
+    @test dropdims(g, dims=2) isa TransmutedDimsArray{Int,2,(1,2)}
+    @test dropdims(t, dims=2) == m'
+    @test dropdims(t, dims=2) isa TransmutedDimsArray{Int,2,(2,1)}
+
+    h = reshape(1:9, 3,1,3)
+    f = Transmute{(0,3,2,1)}(h)
+    @test size(f) == (1,3,1,3)
+    @test dropdims(f, dims=1) == permutedims(h, (3,2,1))
+    @test dropdims(f, dims=3).parent == reshape(h,3,3)
+    @test dropdims(f, dims=(1,3)) == reshape(h,3,3)'
+    @test dropdims(f, dims=(3,1)) == reshape(h,3,3)'
+
+    # errors
     @test_throws ArgumentError TransmutedDimsArray(m, (2,0,1,0,2))
+    @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
 
     # unwrapping
     @test Transmute{(2,0,1)}(m') === Transmute{(1,0,2)}(m)

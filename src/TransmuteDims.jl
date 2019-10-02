@@ -2,6 +2,16 @@ module TransmuteDims
 
 export TransmutedDimsArray, Transmute, transmutedims, transmutedims!
 
+#=
+
+TODO:
+* how to allow efficient creation using names
+* more Transmute{} shortcuts, != TransmutedDimsArray
+* Efficient reductions? sum(parent) etc
+* transmutedims as permutedims + reshape, on DenseArray
+
+=#
+
 #========== alla PermutedDimsArrays, mostly ==========#
 
 struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray,L} <: AbstractArray{T,N}
@@ -14,6 +24,9 @@ end
 This is just like `PermutedDimsArray`, except that `perm′` need not be a permutation:
 where it contains `0`, this inserts a trivial dimension into the output, size 1.
 Any number outside `1:ndims(A)` is treated like `0`, fitting with `size(A,99) == 1`.
+
+When `A` is a `PermutedDimsArray`, `TransmutedDimsArray` or a `Transpose{<:Number}`,
+the constructor adjust adjust perm′ to work directly on `parent(A)`, and wrap that.
 
 See also: [`transmutedims`](@ref), [`Transmute`](@ref).
 
@@ -31,6 +44,9 @@ true
 ```
 """
 TransmutedDimsArray(data::AbstractArray, perm) = Transmute{Tuple(perm)}(data)
+
+# perm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = P
+# iperm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = Q
 
 """
     Transmute{perm′}(A::AbstractArray)
@@ -95,26 +111,41 @@ Base.pointer(A::TransmutedDimsArray, i::Integer) = throw(ArgumentError(
 Base.strides(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
     genperm_zero(strides(parent(A)), perm, 0)
 
+Base.dataids(A::TransmutedDimsArray) = Base.dataids(A.parent)
+
+Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
+
 Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
     L ? IndexLinear() : IndexCartesian()
+# Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} = IndexCartesian()
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
     @inbounds val = getindex(A.parent, genperm_zero(I, iperm)...)
     val
 end
-
-@inline Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S} =
+@inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
+    @boundscheck checkbounds(A, i)
     getindex(A.parent, i)
+end
 
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
     @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
+@inline function Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S}
+    @boundscheck checkbounds(A, i)
+    @inbounds setindex!(A.parent, val, i)
+    val
+end
 
-@inline Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S} =
-    setindex!(A.parent, val, i)
+# Not entirely sure this is a good idea, but passing KW along...
+Base.@propagate_inbounds Base.getindex(A::TransmutedDimsArray; kw...) =
+    getindex(A.parent; kw...)
+Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
+    setindex!(A.parent, val; kw...)
+
 
 @inline genperm_zero(I::Tuple, perm::Dims{N}, gap=1) where {N} =
     ntuple(d -> perm[d]==0 ? gap : I[perm[d]], Val(N))
@@ -152,14 +183,6 @@ function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where 
 end
 
 #========== GPU etc ==========#
-#=
-
-TODO:
-* Efficient reductions?
-* transmutedims as permutedims + reshape, on DenseArray
-* Transmute shortcuts?
-
-=#
 
 using GPUArrays
 # https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/broadcast.jl
@@ -220,16 +243,15 @@ _dropdims(A) = A
 function _dropdims(A::TransmutedDimsArray{T,N,P}, d::Int, dims...) where {T,N,P}
     if P[d]==0
         perm = ntuple(n -> n<d ? P[n] : P[n+1], N-1)
-        _dropdims(Transmute{perm}(A.parent), dims...)
+        newdims = map(n -> n<d ? n : n-1, dims)
+        _dropdims(Transmute{perm}(A.parent), newdims...)
     else
         perm = ntuple(N-1) do n
-            if n<d
-                P[n]<d ? P[n] : P[n]-1
-            else
-                P[n+1]<d ? P[n+1] : P[n+1]-1
-            end
+            Pn = n<d ? P[n] : P[n+1]
+            Pn<d ? Pn : Pn-1
         end
-        _dropdims(Transmute{perm}(dropdims(A.parent, dims=P[d])), dims...)
+        newdims = map(n -> n<d ? n : n-1, dims)
+        _dropdims(Transmute{perm}(dropdims(A.parent; dims=P[d])), newdims...)
     end
 end
 
@@ -271,5 +293,9 @@ end
     perm = ntuple(d -> d==lo ? hi : d==hi ? lo : d, ndims(x))
     :( Transmute{$perm}(x) )
 end
+
+#========== Reductions ==========#
+
+Base.sum(A::TransmutedDimsArray) = sum(A.parent)
 
 end
