@@ -1,13 +1,42 @@
-using TransmuteDims, Random, Test
+using TransmuteDims, Random, Test, OffsetArrays
+using TransmuteDims: TransmutedDimsArray
 
-@testset "new features" begin
+@testset "eager" begin
 
     m = rand(1:99, 3,4)
     @test transmutedims(m, (1,0,2)) == reshape(m, 3,1,4)
     @test transmutedims(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
+    @test transmutedims(m, (2,nothing,1)) == reshape(permutedims(m), 4,1,3)
+
+    o314 = rand(3,1,4);
+    @test transmutedims!(o314, m, (1,0,2)) == reshape(m, 3,1,4)
+    o413 = rand(4,1,3);
+    @test transmutedims!(o413, m, (2,99,1)) == reshape(permutedims(m), 4,1,3)
+    @test o413 == reshape(permutedims(m), 4,1,3)
+
+    @test_throws Exception transmutedims(m, (1,))    # too few
+    @test_throws Exception transmutedims(m, (1,0,0)) # 2 doesn't appear
+    @test_throws Exception transmutedims(m, (1,2,1)) # 1 is repeated
+
+    @test_throws Exception transmutedims!(o314, m, (1,))
+    @test_throws Exception transmutedims!(o314, m, (1,0,0))
+    @test_throws Exception transmutedims!(o314, m, (1,2,2))
+
+    @test_throws Exception transmutedims!(o314, m, (2,0,1)) # wrong size
+
+end
+@testset "lazy" begin
+
+    m = rand(1:99, 3,4)
     @test Transmute{(1,0,2)}(m) == reshape(m, 3,1,4)
     @test Transmute{(1,999,2)}(m) == reshape(m, 3,1,4)
     @test Transmute{(1,nothing,2)}(m) == reshape(m, 3,1,4)
+    @test transmute(m, (1,0,2)) == reshape(m, 3,1,4)
+    @test transmute(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
+    @test transmute(m, (2,nothing,1)) == reshape(transpose(m), 4,1,3)
+    @test TransmutedDimsArray(m, (1,0,2)) == reshape(m, 3,1,4)
+    @test TransmutedDimsArray(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
+    @test TransmutedDimsArray(m, (2,nothing,1)) == reshape(transpose(m), 4,1,3)
 
     g = Transmute{(1,0,2)}(m)
     t = Transmute{(2,0,1)}(m)
@@ -41,8 +70,12 @@ using TransmuteDims, Random, Test
     @test dropdims(f, dims=(3,1)) == reshape(h,3,3)'
 
     # errors
-    @test_throws ArgumentError TransmutedDimsArray(m, (2,0,1,0,2))
+    @test_throws ArgumentError Transmute{(2,)}(m)
     @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
+    @test_throws ArgumentError transmute(m, (2,))
+    @test_throws ArgumentError transmute(m, (2,0,1,0,2))
+    @test_throws Exception TransmutedDimsArray(m, (2,))
+    @test_throws Exception TransmutedDimsArray(m, (2,0,1,0,2))
 
     # unwrapping
     @test Transmute{(2,0,1)}(m') === Transmute{(1,0,2)}(m)
@@ -63,8 +96,40 @@ using TransmuteDims, Random, Test
     @test TransmutedDimsArray(x1, (2,4,1,3)) == TransmutedDimsArray(x3, (2,4,1,3))
     @test TransmutedDimsArray(x1, (2,0,1,4,3)) == TransmutedDimsArray(x3, (2,0,1,4,3))
 
+    # linear indexing, for more constructors
+    y = zeros(1,2,3);
+    @test IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear()
+    @test IndexStyle(Transmute{(1,0,2,0,3)}(y)) == IndexLinear()
+    @test IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
+    @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
+    @test IndexStyle(Transmute{(3,0,2,0,1)}(y)) == IndexCartesian()
+    @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
+
 end
-@testset "permutedims from Base" begin
+@testset "offset" begin
+
+    o34 = ones(11:13, 21:24)
+    rand!(o34)
+
+    @test transmutedims(o34, (2,1)) == permutedims(o34)
+    @test axes(transmutedims(o34, (2,0,1))) == (21:24, 1:1, 11:13)
+
+    @test Transmute{(2,0,1)}(o34)[21, 1, 13] == o34[13, 21]
+
+end
+@testset "allocations" begin
+
+    y = ones(1,2,3);
+
+    @allocated Transmute{(3,2,0,1)}(y)
+    @test 17 > @allocated Transmute{(3,2,0,1)}(y)
+
+    @allocated transmute(y, (3,2,0,1))
+    @test 129 > @allocated transmute(y, (3,2,0,1))
+
+end
+@testset "from Base" begin
+
     # keeps the num of dim
     p = randperm(5)
     q = randperm(5)
