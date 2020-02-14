@@ -94,7 +94,9 @@ Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
-    @inbounds val = getindex(A.parent, genperm_zero(I, iperm)...)
+    @inbounds val = ifelse(off_diag(Val(perm), I), zero(T), getindex(A.parent, genperm_zero(I, iperm)...))
+    # @inbounds val = off_diag(Val(perm), I) ? zero(T) : getindex(A.parent, genperm_zero(I, iperm)...)
+    # not sure which is better
     val
 end
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
@@ -104,6 +106,10 @@ end
 
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
+    if off_diag(Val(perm), I)
+        iszero(val) || throw(ArgumentError(
+            "cannot set off-diagonal entry $I to a nonzero value ($val)"))
+    end
     @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
@@ -127,6 +133,22 @@ Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
 
 @inline sanitise_zero(P::Tuple, A) = map(i -> i in Base.OneTo(ndims(A)) ? i : 0, P)
 
+@inline function off_diag(P::Tuple, I::Tuple)
+    for a in 1:length(P)
+        for b in 1:length(P)
+            P[a] == P[b] || continue
+            I[a] == I[b] || return true
+        end
+    end
+    false
+end
+@inline @generated function off_diag(::Val{P}, I::Tuple) where {P}
+    out = []
+    for a in 1:length(P), b in 1:length(P)
+        P[a] == P[b] && push!(out,  :( I[$a] != I[$b] ))
+    end
+    Expr(:call, :|, out...)
+end
 
 function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where {T,N,perm}
     print(io, "TransmutedDimsArray(")

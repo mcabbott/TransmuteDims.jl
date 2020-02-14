@@ -191,3 +191,15 @@ end
     # v = [1,2,3]
     # @test transmutedims(v) == [1 2 3]
 end
+@testset "diagonal" begin
+
+    d = TransmutedDimsArray{Int64,2,(1, 1),(1,),Array{Int64,1},false}(ones(Int, 3))
+    @test d == Diagonal(ones(3))
+    @test d[2] == 0
+    @test (d[3,3] = 33) == 33
+    @test d[3,3] == 33
+    @test_throws ArgumentError d[1,2] = 99
+
+    @test_broken sum(dd .+ 10) == 90 + 1 + 1 + 33
+
+end
