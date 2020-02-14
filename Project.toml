@@ -10,6 +10,8 @@ GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
+Adapt = "1.0"
+GPUArrays = "2.0"
 julia = "1"
 Adapt = "1"
 Compat = "3.1"
