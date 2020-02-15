@@ -14,13 +14,13 @@ using TransmuteDims: TransmutedDimsArray
     @test transmutedims!(o413, m, (2,99,1)) == reshape(permutedims(m), 4,1,3)
     @test o413 == reshape(permutedims(m), 4,1,3)
 
-    @test_throws Exception transmutedims(m, (1,))    # too few
-    @test_throws Exception transmutedims(m, (1,0,0)) # 2 doesn't appear
-    @test_throws Exception transmutedims(m, (1,2,1)) # 1 is repeated
+    @test_throws ArgumentError transmutedims(m, (1,))    # too few
+    @test_throws ArgumentError transmutedims(m, (1,0,0)) # 2 doesn't appear
+    # @test_throws Exception transmutedims(m, (1,2,1)) # 1 is repeated
 
-    @test_throws Exception transmutedims!(o314, m, (1,))
+    @test_throws ArgumentError transmutedims!(o314, m, (1,))
     @test_throws Exception transmutedims!(o314, m, (1,0,0))
-    @test_throws Exception transmutedims!(o314, m, (1,2,2))
+    @test_throws DimensionMismatch transmutedims!(o314, m, (1,2,2))
 
     @test_throws Exception transmutedims!(o314, m, (2,0,1)) # wrong size
 
@@ -213,5 +213,8 @@ end
     @test q[2,1,2,2] == r[2]
     @test q[2,1,2,3] == 0
     @test_throws ArgumentError q[1,1,1,3] = 99
+
+    # eager
+    @test q == transmutedims(r, (1,0,1,1))
 
 end

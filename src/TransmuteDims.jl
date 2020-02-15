@@ -43,12 +43,17 @@ julia> size(B)
 julia> B[3,1,1,2] == A[1,2,3]
 true
 
-julia> C = TransmutedDimsArray(1:3, (1,1,0))
-3×3×1 TransmutedDimsArray(::UnitRange{Int64}, (1, 1, 0)) with eltype Int64:
+julia> transmute(reshape(1:6,:,2), (1,1,2))
+3×3×2 TransmutedDimsArray(reshape(::UnitRange{Int64}, 3, 2), (1, 1, 2)) with eltype Int64:
 [:, :, 1] =
  1  ⋅  ⋅
  ⋅  2  ⋅
  ⋅  ⋅  3
+
+[:, :, 2] =
+ 4  ⋅  ⋅
+ ⋅  5  ⋅
+ ⋅  ⋅  6
 ```
 """
 function TransmutedDimsArray(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
@@ -325,8 +330,7 @@ _transmutedims_doc = """
 These are just like `permutedims` / `permutedims!`, except that `perm′` need not
 be a permutation of `1:ndims(A)`. Any number outside this range inserts a trivial
 dimension into the output, size 1, fitting with `size(A,99) == 1`.
-
-They are implemented just as permutation + `reshape`.
+And any repeated number places that dimension along a diagonal.
 
 See also: [`TransmutedDimsArray`](@ref), [`Transmute`](@ref).
 
@@ -351,6 +355,16 @@ julia> transmutedims!(C, A, (3,0,1,2)); # OK to replace 4 with 0
 
 julia> C == B
 true
+
+julia> transmutedims(reshape((1:10),2,:), (1,2,1))
+2×5×2 Array{Int64,3}:
+[:, :, 1] =
+ 1  3  5  7  9
+ 0  0  0  0  0
+
+[:, :, 2] =
+ 0  0  0  0   0
+ 2  4  6  8  10
 ```
 """
 
@@ -361,8 +375,10 @@ function transmutedims(src::AbstractArray{T,N}, perm) where {T,N}
     final_ax = map(d -> d in 1:N ? axes(src, d) : Base.OneTo(1), Tuple(perm))
     if safe_perm == 1:ndims(src)
         reshape(copy(src), final_ax...)
-    else
+    elseif all_unique(filter(!iszero, safe_perm)...)
         reshape(permutedims(src, safe_perm), final_ax...)
+    else
+        collect(transmute(src, perm))
     end
 end
 
@@ -378,8 +394,10 @@ function transmutedims!(dst::AbstractArray, src::AbstractArray{T,N}, perm::Tuple
     end
     if safe_perm == 1:ndims(src)
         copyto!(dst, src)
-    else
+    elseif all_unique(filter(!iszero, safe_perm)...)
         permutedims!(reshape(dst, permed_ax...), src, safe_perm)
+    else
+        copyto!(dst, transmute(src, perm))
     end
     dst
 end
