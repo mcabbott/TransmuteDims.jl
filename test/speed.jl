@@ -12,16 +12,16 @@ V1 = randn(1000);
 @btime PermutedDimsArray($M1,(2,1));   #   490.928 ns (4 allocations: 176 bytes)
 
 @btime Transmute{(2,1)}($M1);          #     6.459 ns (1 allocation: 16 bytes)
-@btime transmute($M1, (2,1));          #   548.223 ns (3 allocations: 80 bytes)
-@btime TransmutedDimsArray($M1,(2,1)); # 1.044 μs (6 allocations: 192 bytes)
+@btime transmute($M1, (2,1));          #   563.924 ns (4 allocations: 112 bytes)
+@btime TransmutedDimsArray($M1,(2,1)); #   767.825 ns (8 allocations: 592 bytes)
 
 const cM1 = randn(1000,1000);                    # best-case constant propagation
 @btime (() -> PermutedDimsArray(cM1,(2,1)))();   #    43.158 ns (2 allocations: 112 bytes)
 @btime (() -> transmute(cM1,(2,1)))();           #     5.694 ns (1 allocation: 16 bytes)
-@btime (() -> TransmutedDimsArray(cM1,(2,1)))(); # 1.047 μs (3 allocations: 80 bytes)
+@btime (() -> TransmutedDimsArray(cM1,(2,1)))(); #   761.885 ns (8 allocations: 592 bytes)
                                                  # harder case?
-@btime (x -> PermutedDimsArray(x, (2,1)))($M1);  #   522.031 ns (3 allocations: 80 bytes)
-@btime (x -> transmute(x, (2,1)))($M1);          #   671.378 ns (3 allocations: 80 bytes)
+@btime (x -> PermutedDimsArray(x, (2,1)))($M1);  #   411.575 ns (4 allocations: 176 bytes)
+@btime (x -> transmute(x, (2,1)))($M1);          #   565.357 ns (4 allocations: 112 bytes)
 
 
 const newaxis = [CartesianIndex()] # another way of making gaps
@@ -120,11 +120,11 @@ G5 === G4
 @btime collect(PermutedDimsArray($T1,(3,2,1))); # 4.607 ms
 
 M4 = randn(2,2);
-@btime permutedims($M4, (2,1));               # 47.586 ns +
-@btime transmutedims($M4, (2,1));             # 58.295 ns +
+@btime permutedims($M4, (2,1));               #  48.147 ns (1 allocation: 112 bytes)
+@btime transmutedims($M4, (2,1));             # 216.911 ns (3 allocations: 176 bytes)
 
-@btime reshape($M4, (2,1,2));                 # 27.935 ns +
-@btime transmutedims($M4, (1,0,2));           # 90.681 ns +
+@btime reshape($M4, (2,1,2));                 #  28.114 ns (1 allocation: 80 bytes)
+@btime transmutedims($M4, (1,0,2));           # 254.127 ns (5 allocations: 288 bytes)
 
 # In-place
 

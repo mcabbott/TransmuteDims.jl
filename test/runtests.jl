@@ -14,13 +14,13 @@ using TransmuteDims: TransmutedDimsArray
     @test transmutedims!(o413, m, (2,99,1)) == reshape(permutedims(m), 4,1,3)
     @test o413 == reshape(permutedims(m), 4,1,3)
 
-    @test_throws Exception transmutedims(m, (1,))    # too few
-    @test_throws Exception transmutedims(m, (1,0,0)) # 2 doesn't appear
-    @test_throws Exception transmutedims(m, (1,2,1)) # 1 is repeated
+    @test_throws ArgumentError transmutedims(m, (1,))    # too few
+    @test_throws ArgumentError transmutedims(m, (1,0,0)) # 2 doesn't appear
+    # @test_throws Exception transmutedims(m, (1,2,1)) # 1 is repeated
 
-    @test_throws Exception transmutedims!(o314, m, (1,))
+    @test_throws ArgumentError transmutedims!(o314, m, (1,))
     @test_throws Exception transmutedims!(o314, m, (1,0,0))
-    @test_throws Exception transmutedims!(o314, m, (1,2,2))
+    @test_throws DimensionMismatch transmutedims!(o314, m, (1,2,2))
 
     @test_throws Exception transmutedims!(o314, m, (2,0,1)) # wrong size
 
@@ -71,11 +71,11 @@ end
 
     # errors
     @test_throws ArgumentError Transmute{(2,)}(m)
-    @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
+    # @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
     @test_throws ArgumentError transmute(m, (2,))
-    @test_throws ArgumentError transmute(m, (2,0,1,0,2))
+    # @test_throws ArgumentError transmute(m, (2,0,1,0,2))
     @test_throws Exception TransmutedDimsArray(m, (2,))
-    @test_throws Exception TransmutedDimsArray(m, (2,0,1,0,2))
+    # @test_throws Exception TransmutedDimsArray(m, (2,0,1,0,2))
 
     # unwrapping
     @test Transmute{(2,0,1)}(m') === Transmute{(1,0,2)}(m)
@@ -190,4 +190,32 @@ end
 
     # v = [1,2,3]
     # @test transmutedims(v) == [1 2 3]
+end
+@testset "diagonal" begin
+
+    for d in [
+        TransmutedDimsArray(ones(Int,3), (1,1)),
+        transmute(ones(Int,3), (1,1)),
+        Transmute{(1,1)}(ones(Int,3)),
+        ]
+        @test d == [1 0 0; 0 1 0; 0 0 1]
+        @test d[2] == 0
+        @test (d[3,3] = 33) == 33
+        @test d[3,3] == 33
+        @test (d[2,1] = 0) == 0
+        @test_throws ArgumentError d[1,2] = 99
+        @test IndexStyle(d) == IndexCartesian()
+
+        @test sum(d .+ 10) == 90 + 1 + 33
+    end
+
+    r = rand(3)
+    q = TransmutedDimsArray(r, (1,0,1,1))
+    @test q[2,1,2,2] == r[2]
+    @test q[2,1,2,3] == 0
+    @test_throws ArgumentError q[1,1,1,3] = 99
+
+    # eager
+    @test q == transmutedims(r, (1,0,1,1))
+
 end

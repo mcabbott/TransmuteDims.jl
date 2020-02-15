@@ -22,11 +22,11 @@ end
     TransmutedDimsArray(A, perm′) -> B
 
 This is just like `PermutedDimsArray`, except that `perm′` need not be a permutation:
-where it contains `0`, this inserts a trivial dimension into the output, size 1.
-Any number outside `1:ndims(A)` is treated like `0`, fitting with `size(A,99) == 1`.
 
-When `A` is a `PermutedDimsArray`, `TransmutedDimsArray` or a `Transpose{<:Number}`,
-the constructor adjust adjust perm′ to work directly on `parent(A)`, and wrap that.
+* Where it contains `0`, this inserts a trivial dimension into the output, size 1.
+  Any number outside `1:ndims(A)` is treated like `0`, fitting with `size(A,99) == 1`.
+
+* When number appears twice in `perm′`, then this works like `Diagonal` in those dimensions.
 
 See also: [`Transmute`](@ref) (faster constructor),
 [`transmutedims`](@ref) (eager version)
@@ -42,25 +42,35 @@ julia> size(B)
 
 julia> B[3,1,1,2] == A[1,2,3]
 true
+
+julia> transmute(reshape(1:6,:,2), (1,1,2))
+3×3×2 TransmutedDimsArray(reshape(::UnitRange{Int64}, 3, 2), (1, 1, 2)) with eltype Int64:
+[:, :, 1] =
+ 1  ⋅  ⋅
+ ⋅  2  ⋅
+ ⋅  ⋅  3
+
+[:, :, 2] =
+ 4  ⋅  ⋅
+ ⋅  5  ⋅
+ ⋅  ⋅  6
 ```
 """
 function TransmutedDimsArray(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
-    #=
     P = map(n -> n in 1:M ? n : 0, Tuple(perm))
     for d in 1:M
-        count(isequal(d), P) == 1 || throw(ArgumentError(
-            "Every number in 1:$M must occur exactly once in (sanitised) transmutation $P, but $d appears $(count(isequal(d), P)) times."))
+        count(isequal(d), P) >= 1 || throw(ArgumentError(
+            "Every number in 1:$M must appear at least once in trasmutation $P, bud $d is missing"))
     end
     Q = invperm_zero(P, M)
     L = IndexStyle(data) === IndexLinear() &&
-        all(Q[d] < Q[d+1] for d in 1:length(Q)-1)
+        allunique(filter(!iszero, P)) &&
+        issorted(Q)
     TransmutedDimsArray{T,length(perm),P,Q,AT,L}(data)
-    =#
-    transmute(data, perm)
 end
 
-perm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = P
-iperm(A::TransmutedDimsArray{T,N,P,Q} where {T,N,P,Q}) = Q
+perm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = P
+iperm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
 
 Base.parent(A::TransmutedDimsArray) = A.parent
 
@@ -94,7 +104,9 @@ Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
-    @inbounds val = getindex(A.parent, genperm_zero(I, iperm)...)
+    @inbounds val = ifelse(off_diag(Val(perm), I), zero(T), getindex(A.parent, genperm_zero(I, iperm)...))
+    # @inbounds val = off_diag(Val(perm), I) ? zero(T) : getindex(A.parent, genperm_zero(I, iperm)...)
+    # not sure which is better
     val
 end
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
@@ -104,6 +116,10 @@ end
 
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
+    if off_diag(Val(perm), I)
+        iszero(val) || throw(ArgumentError(
+            "cannot set off-diagonal entry $I to a nonzero value ($val)"))
+    end
     @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
@@ -127,6 +143,22 @@ Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
 
 @inline sanitise_zero(P::Tuple, A) = map(i -> i in Base.OneTo(ndims(A)) ? i : 0, P)
 
+@inline function off_diag(P::Tuple, I::Tuple)
+    for a in 1:length(P)
+        for b in 1:length(P)
+            P[a] == P[b] || continue
+            I[a] == I[b] || return true
+        end
+    end
+    false
+end
+@inline @generated function off_diag(::Val{P}, I::Tuple) where {P}
+    out = []
+    for a in 1:length(P), b in 1:length(P)
+        P[a] == P[b] && push!(out,  :( I[$a] != I[$b] ))
+    end
+    Expr(:call, :|, out...)
+end
 
 function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where {T,N,perm}
     print(io, "TransmutedDimsArray(")
@@ -134,6 +166,36 @@ function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where 
     print(io, ", ", perm, ')')
     toplevel && print(io, " with eltype ", eltype(A))
 end
+
+# This is from  julia/stdlib/v1.3/LinearAlgebra/src/diagonal.jl:109
+# function Base.replace_in_print_matrix(A::Diagonal,i::Integer,j::Integer,s::AbstractString)
+function Base.replace_in_print_matrix(A::TransmutedDimsArray,
+        i::Integer,j::Integer,s::AbstractString)
+    off_diag(perm(A), (i,j)) ? Base.replace_with_centered_mark(s) : s
+end
+function Base.replace_in_print_matrix(A::SubArray{<:Any,2,<:TransmutedDimsArray},
+        i::Integer,j::Integer,s::AbstractString) where {S}
+    ijk = (i, j, A.indices[3:end]...)
+    off_diag(perm(A.parent), ijk) ? Base.replace_with_centered_mark(s) : s
+end
+
+function Base.show_nd(io::IO, A::TransmutedDimsArray, print_matrix::Function, label_slices::Bool)
+    allunique(filter(!iszero, perm(A))) &&
+        Core.invoke(Base.show_nd, Tuple{IO, AbstractArray, Function, Bool}, io, A, print_matrix, label_slices)
+    # Only run this version on generalised diagonal things?
+
+    ii = ntuple(d->firstindex(A, d+2), ndims(A)-2)
+    println(io, "[:, :, ", join(ii, ", "), "] =")
+    print_matrix(io, view(A, :, :, ii...))
+
+    prod(size(A)[3:end]) == 1 && return nothing
+    println(io, "\n")
+
+    jj = ntuple(d->lastindex(A, d+2), ndims(A)-2)
+    println(io, "[:, :, ", join(jj, ", "), "] =")
+    print_matrix(io, view(A, :, :, jj...))
+end
+
 
 #========== Constructors Transmute{} and transmute() ==========#
 
@@ -143,6 +205,10 @@ end
 
 Equivalent to `TransmutedDimsArray(A, perm′)`, but computes the inverse
 (and performs sanity checks) at compile-time.
+
+When `A` is a `PermutedDimsArray`, `TransmutedDimsArray` or a `Transpose{<:Number}`,
+the constructor adjust adjust perm′ to work directly on `parent(A)`, and wrap that.
+
 """
 struct Transmute{perm} end
 
@@ -150,14 +216,18 @@ Transmute{perm}(x) where {perm} = x
 
 @generated function Transmute{perm}(data::A) where {A<:AbstractArray{T,M}} where {T,M,perm}
     perm_plus = sanitise_zero(perm, data)
-    real_perm = filter(!iszero, perm_plus)
-    length(real_perm) == M && isperm(real_perm) || throw(ArgumentError(
-        string(real_perm, " is not a valid permutation of dimensions 1:", M,
-            ". Obtained by filtering input ",perm)))
+    for d in 1:M
+        count(isequal(d), perm_plus) >= 1 || throw(ArgumentError(
+            "Every number in 1:$M must appear at least once in trasmutation $perm_plus, bud $d is missing"))
+    end
+
+    iperm = invperm_zero(perm_plus, M)
 
     N = length(perm_plus)
-    iperm = invperm_zero(perm_plus, M)
-    L = issorted(real_perm)
+
+    L = issorted(iperm) &&
+        allunique(filter(!iszero, perm_plus)) &&
+        IndexStyle(data) === IndexLinear()
 
     :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A,$L}(data) )
 end
@@ -223,15 +293,15 @@ function _transmute_calc(A::AbstractArray{T,M}, tup::Tuple{Vararg{Any,N}}) where
     # Calculate sort-of inverse
     Q = ntuple(M) do d
         c = ntuple(n -> P[n]==d ? 1 : 0, N)
-        sum(c)==1 || throw(ArgumentError(
-            "Every number in 1:$N must occur exactly once in (sanitised) trasmutation $P, but one appears $(sum(c)) times."))
+        sum(c)>=1 || throw(ArgumentError(
+            "Every number in 1:$M must appear at least once in trasmutation $P, bud $d is missing"))
 
         w = ntuple(n -> P[n]==d ? n : 0, N)
-        sum(w)
+        maximum(w)
     end
 
     # Linear indexing?
-    L = (IndexStyle(A) === IndexLinear()) & are_increasing(Q...)
+    L = (IndexStyle(A) === IndexLinear()) & all_unique(filter(!iszero, P)...) & are_increasing(Q...)
 
     return P,Q,L
 end
@@ -245,6 +315,12 @@ end
 are_increasing(x, y, zs...) = (x<y) & are_increasing(y, zs...)
 are_increasing(x) = true
 
+all_unique(p, qs...) = !(p in qs) & all_unique(qs...)
+all_unique(x) = true
+
+# @btime allunique((1,2,3))  # 135.309 ns (4 allocations: 480 bytes)
+# @btime all_unique((1,2,3)) #   1.975 ns (0 allocations: 0 bytes)
+
 #========== transmutedims() uses permutedims() ==========#
 
 _transmutedims_doc = """
@@ -254,8 +330,7 @@ _transmutedims_doc = """
 These are just like `permutedims` / `permutedims!`, except that `perm′` need not
 be a permutation of `1:ndims(A)`. Any number outside this range inserts a trivial
 dimension into the output, size 1, fitting with `size(A,99) == 1`.
-
-They are implemented just as permutation + `reshape`.
+And any repeated number places that dimension along a diagonal.
 
 See also: [`TransmutedDimsArray`](@ref), [`Transmute`](@ref).
 
@@ -280,6 +355,16 @@ julia> transmutedims!(C, A, (3,0,1,2)); # OK to replace 4 with 0
 
 julia> C == B
 true
+
+julia> transmutedims(reshape((1:10),2,:), (1,2,1))
+2×5×2 Array{Int64,3}:
+[:, :, 1] =
+ 1  3  5  7  9
+ 0  0  0  0  0
+
+[:, :, 2] =
+ 0  0  0  0   0
+ 2  4  6  8  10
 ```
 """
 
@@ -290,8 +375,10 @@ function transmutedims(src::AbstractArray{T,N}, perm) where {T,N}
     final_ax = map(d -> d in 1:N ? axes(src, d) : Base.OneTo(1), Tuple(perm))
     if safe_perm == 1:ndims(src)
         reshape(copy(src), final_ax...)
-    else
+    elseif all_unique(filter(!iszero, safe_perm)...)
         reshape(permutedims(src, safe_perm), final_ax...)
+    else
+        collect(transmute(src, perm))
     end
 end
 
@@ -307,8 +394,10 @@ function transmutedims!(dst::AbstractArray, src::AbstractArray{T,N}, perm::Tuple
     end
     if safe_perm == 1:ndims(src)
         copyto!(dst, src)
-    else
+    elseif all_unique(filter(!iszero, safe_perm)...)
         permutedims!(reshape(dst, permed_ax...), src, safe_perm)
+    else
+        copyto!(dst, transmute(src, perm))
     end
     dst
 end
