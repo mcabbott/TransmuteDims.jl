@@ -1,5 +1,5 @@
 using TransmuteDims, Random, Test, OffsetArrays
-using TransmuteDims: TransmutedDimsArray
+using TransmuteDims: TransmutedDimsArray, _transpose
 
 @testset "eager" begin
 
@@ -96,6 +96,10 @@ end
     @test TransmutedDimsArray(x1, (2,4,1,3)) == TransmutedDimsArray(x3, (2,4,1,3))
     @test TransmutedDimsArray(x1, (2,0,1,4,3)) == TransmutedDimsArray(x3, (2,0,1,4,3))
 
+    # unwrapping caused by transpose etc
+    @test transpose(Transmute{(2,1)}(m)) isa TransmutedDimsArray{Int,2,(1,2)}
+    @test adjoint(Transmute{(0,1)}(v)) isa TransmutedDimsArray{Int,2,(1,0)}
+
     # linear indexing, for more constructors
     y = zeros(1,2,3);
     @test IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear()
@@ -190,6 +194,15 @@ end
 
     # v = [1,2,3]
     # @test transmutedims(v) == [1 2 3]
+end
+@testset "transpose" begin
+
+    @test size(_transpose(ones(1,2,3,4), (2,4))) == (1,4,3,2)
+    @test size(_transpose(ones(1,2,3,4), Val((2,4)))) == (1,4,3,2)
+
+    @test size(_transpose(ones(1,2,3), (2,5))) == (1,1,3,1,2)
+    @test size(_transpose(ones(1,2,3), Val((2,5)))) == (1,1,3,1,2)
+
 end
 @testset "diagonal" begin
 

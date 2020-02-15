@@ -50,7 +50,7 @@ by altering the permutation to leave just one wrapper:
 ```julia
 C = PermutedDimsArray(A, (2,3,1));
 
-summary(Transmute{(3,2,0,1)}(C))     # 10×30×1×20 TransmutedDimsArray(::Array{Float64,3}, (1, 3, 0, 2))
+summary(Transmute{(3,2,0,1)}(C))     # 10×30×1×20 TransmutedDimsArray(::Array{Float64,3}, ...
 
 IndexStyle(C)                        # IndexCartesian()
 IndexStyle(Transmute{(3,1,2,0)}(C))  # IndexLinear()
@@ -59,8 +59,8 @@ IndexStyle(Transmute{(3,1,2,0)}(C))  # IndexLinear()
 The original motivation for this
 in [NamedPlus.jl](https://github.com/mcabbott/NamedPlus.jl) was to align arrays for broadcasting
 according to their axis names, not positions.
+It also allows generalised transposes, not yet exported:
 
-<!--
 ```julia
 using TransmuteDims: _transpose
 
@@ -70,4 +70,3 @@ _transpose(A) == transmute(A, (2,1,3))
 size(_transpose(A, (2,5)))  # (10, 1, 30, 1, 20)
 _transpose(A, (2,5)) == transmute(A, (1,0,3,0,2))
 ```
--->
