@@ -71,11 +71,11 @@ end
 
     # errors
     @test_throws ArgumentError Transmute{(2,)}(m)
-    @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
+    # @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
     @test_throws ArgumentError transmute(m, (2,))
-    @test_throws ArgumentError transmute(m, (2,0,1,0,2))
+    # @test_throws ArgumentError transmute(m, (2,0,1,0,2))
     @test_throws Exception TransmutedDimsArray(m, (2,))
-    @test_throws Exception TransmutedDimsArray(m, (2,0,1,0,2))
+    # @test_throws Exception TransmutedDimsArray(m, (2,0,1,0,2))
 
     # unwrapping
     @test Transmute{(2,0,1)}(m') === Transmute{(1,0,2)}(m)
@@ -193,13 +193,25 @@ end
 end
 @testset "diagonal" begin
 
-    d = TransmutedDimsArray{Int64,2,(1, 1),(1,),Array{Int64,1},false}(ones(Int, 3))
-    @test d == Diagonal(ones(3))
-    @test d[2] == 0
-    @test (d[3,3] = 33) == 33
-    @test d[3,3] == 33
-    @test_throws ArgumentError d[1,2] = 99
+    for d in [
+        TransmutedDimsArray(ones(Int,3), (1,1)),
+        transmute(ones(Int,3), (1,1)),
+        ]
+        @test d == [1 0 0; 0 1 0; 0 0 1]
+        @test d[2] == 0
+        @test (d[3,3] = 33) == 33
+        @test d[3,3] == 33
+        @test (d[2,1] = 0) == 0
+        @test_throws ArgumentError d[1,2] = 99
+        @test IndexStyle(d) == IndexCartesian()
 
-    @test_broken sum(dd .+ 10) == 90 + 1 + 1 + 33
+        @test_broken sum(d .+ 10) == 90 + 1 + 1 + 33
+    end
+
+    r = rand(3)
+    q = TransmutedDimsArray(r, (1,0,1,1))
+    @test q[2,1,2,2] == r[2]
+    @test q[2,1,2,3] == 0
+    @test_throws ArgumentError q[1,1,1,3] = 99
 
 end
