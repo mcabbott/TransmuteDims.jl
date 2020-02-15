@@ -57,9 +57,10 @@ IndexStyle(Transmute{(3,1,2,0)}(C))  # IndexLinear()
 ```
 
 The original motivation for this
-in [NamedPlus.jl](https://github.com/mcabbott/NamedPlus.jl) is to align arrays for broadcasting
-according to their axis names, not positions. 
+in [NamedPlus.jl](https://github.com/mcabbott/NamedPlus.jl) was to align arrays for broadcasting
+according to their axis names, not positions.
 
+<!--
 ```julia
 using TransmuteDims: _transpose
 
@@ -69,10 +70,4 @@ _transpose(A) == transmute(A, (2,1,3))
 size(_transpose(A, (2,5)))  # (10, 1, 30, 1, 20)
 _transpose(A, (2,5)) == transmute(A, (1,0,3,0,2))
 ```
-
-
-```julia
-size(transmute(A, (2,2,0,1,3))) # (20, 20, 1, 10, 30)
-
-all( Transmute{(1,1,0)}(1:10) .== Diagonal(1:10) )
-```
+-->

@@ -196,6 +196,7 @@ end
     for d in [
         TransmutedDimsArray(ones(Int,3), (1,1)),
         transmute(ones(Int,3), (1,1)),
+        Transmute{(1,1)}(ones(Int,3)),
         ]
         @test d == [1 0 0; 0 1 0; 0 0 1]
         @test d[2] == 0
@@ -205,7 +206,7 @@ end
         @test_throws ArgumentError d[1,2] = 99
         @test IndexStyle(d) == IndexCartesian()
 
-        @test_broken sum(d .+ 10) == 90 + 1 + 1 + 33
+        @test sum(d .+ 10) == 90 + 1 + 33
     end
 
     r = rand(3)
