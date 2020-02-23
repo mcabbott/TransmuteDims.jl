@@ -109,6 +109,8 @@ end
     @test IndexStyle(Transmute{(3,0,2,0,1)}(y)) == IndexCartesian()
     @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
 
+    @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
+
 end
 @testset "offset" begin
 

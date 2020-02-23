@@ -1,13 +1,15 @@
 module TransmuteDims
 
-export transmutedims, transmutedims!, Transmute, transmute, TransmutedDimsArray
+export transmutedims, transmutedims!, Transmute, transmute
 
 using Compat # v3.1, for filter(f, Tuple)
 
 #=
 
 TODO:
-* how to allow efficient creation using names
+* Simplify to transmute(A, p) & transmute(A, val(p)) only.
+* Unwrapping for transmute(A, p) too
+* Efficient creation using names?
 * Efficient reductions? sum(parent) etc
 
 =#
@@ -109,7 +111,12 @@ Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
     # not sure which is better
     val
 end
+
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
+    @boundscheck checkbounds(A, i)
+    getindex(A.parent, i)
+end # plus one more method to resolve an ambiguity:
+@inline function Base.getindex(A::TransmutedDimsArray{T,1,P,Q,S,true}, i::Int) where {T,P,Q,S}
     @boundscheck checkbounds(A, i)
     getindex(A.parent, i)
 end
@@ -161,7 +168,7 @@ end
 end
 
 function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where {T,N,perm}
-    print(io, "TransmutedDimsArray(")
+    print(io, "transmute(")
     Base.showarg(io, parent(A), false)
     print(io, ", ", perm, ')')
     toplevel && print(io, " with eltype ", eltype(A))
