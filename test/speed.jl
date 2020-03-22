@@ -12,8 +12,8 @@ V1 = randn(1000);
 @btime PermutedDimsArray($M1,(2,1));   #   490.928 ns (4 allocations: 176 bytes)
 
 @btime Transmute{(2,1)}($M1);          #     6.459 ns (1 allocation: 16 bytes)
-@btime transmute($M1, (2,1));          #   563.924 ns (4 allocations: 112 bytes)
-@btime TransmutedDimsArray($M1,(2,1)); #   767.825 ns (8 allocations: 592 bytes)
+@btime transmute($M1, (2,1));          #   363.236 ns (3 allocations: 80 bytes)
+@btime TransmutedDimsArray($M1,(2,1)); #   527.384 ns (3 allocations: 80 bytes)
 
 const cM1 = randn(1000,1000);                    # best-case constant propagation
 @btime (() -> PermutedDimsArray(cM1,(2,1)))();   #    43.158 ns (2 allocations: 112 bytes)
@@ -21,7 +21,7 @@ const cM1 = randn(1000,1000);                    # best-case constant propagatio
 @btime (() -> TransmutedDimsArray(cM1,(2,1)))(); #   761.885 ns (8 allocations: 592 bytes)
                                                  # harder case?
 @btime (x -> PermutedDimsArray(x, (2,1)))($M1);  #   411.575 ns (4 allocations: 176 bytes)
-@btime (x -> transmute(x, (2,1)))($M1);          #   565.357 ns (4 allocations: 112 bytes)
+@btime (x -> transmute(x, (2,1)))($M1);          #   362.447 ns (3 allocations: 80 bytes)
 
 
 const newaxis = [CartesianIndex()] # another way of making gaps
@@ -106,7 +106,7 @@ G5 === G4
 # Dropdims
 
 @btime dropdims($G1, dims=2); # 527.047 ns (9 allocations: 224 bytes)
-@btime dropdims($G4, dims=2); # 662.510 ns (4 allocations: 80 bytes)
+@btime dropdims($G4, dims=2); # 591.194 ns (4 allocations: 80 bytes)
 
 # Copies
 
@@ -158,10 +158,10 @@ M4 = randn(2,2);
 
 using TransmuteDims: _transpose
 
-@btime _transpose($M1, (2,1));           # 504.098 ns (3 allocations: 80 bytes)
+@btime _transpose($M1, (2,1));           # 838.250 ns (4 allocations: 112 bytes)
 @btime _transpose($M1, Val((2,1)));      #   5.922 ns (1 allocation: 16 bytes)
 
-@btime (() -> _transpose(cM1, (2,1)))(); #   5.730 ns (1 allocation: 16 bytes)
+@btime (() -> _transpose(cM1, (2,1)))(); #   5.730 ns (1 allocation: 16 bytes) # broken!
 @btime (() -> _transpose($M1, (2,1)))(); # 502.979 ns (2 allocations: 48 bytes)
 @btime (m -> _transpose(m, (2,1)))($M1); # 396.413 ns (2 allocations: 48 bytes)
 

@@ -6,7 +6,7 @@ using GPUArrays
 using Base.Broadcast
 import Base.Broadcast: BroadcastStyle, Broadcasted, ArrayStyle
 
-TransmuteGPU{AT} = TransmutedDimsArray{T,N,P,Q,AT,L} where {T,N,P,Q,L}
+TransmuteGPU{AT} = TransmutedDimsArray{T,N,P,Q,AT} where {T,N,P,Q}
 
 BroadcastStyle(::Type{<:TransmuteGPU{AT}}) where {AT<:GPUArray} =
     BroadcastStyle(AT)
@@ -46,7 +46,7 @@ Base.show_vector(io::IO, v::TransmuteGPU{AT} where {AT <: GPUArray}, args...) =
 using Adapt
 # https://github.com/JuliaGPU/Adapt.jl/blob/master/src/base.jl
 
-function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT,L}) where {T,N,P,Q,AT,L}
+function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT}) where {T,N,P,Q,AT}
     data = adapt(to, A.parent)
-    TransmutedDimsArray{eltype(data),N,P,Q,typeof(data),L}(data)
+    TransmutedDimsArray{eltype(data),N,P,Q,typeof(data)}(data)
 end

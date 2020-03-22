@@ -82,7 +82,7 @@ function _transpose(x::AbstractArray{T,M}, dims::Tuple{Int,Int}) where {T,M}
         0
     end
     iperm = invperm_zero(perm, M)
-    TransmutedDimsArray{T,N,perm,iperm,typeof(x),false}(x)
+    TransmutedDimsArray{T,N,perm,iperm,typeof(x)}(x)
 end
 
 @generated function _transpose(data::AbstractArray{T,M}, ::Val{dims}=Val((1,2))) where {T,M,dims}

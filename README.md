@@ -51,9 +51,6 @@ by altering the permutation to leave just one wrapper:
 C = PermutedDimsArray(A, (2,3,1));
 
 summary(Transmute{(3,2,0,1)}(C))     # 10×30×1×20 TransmutedDimsArray(::Array{Float64,3}, ...
-
-IndexStyle(C)                        # IndexCartesian()
-IndexStyle(Transmute{(3,1,2,0)}(C))  # IndexLinear()
 ```
 
 The original motivation for this

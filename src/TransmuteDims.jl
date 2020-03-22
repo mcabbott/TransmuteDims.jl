@@ -7,16 +7,18 @@ using Compat # v3.1, for filter(f, Tuple)
 #=
 
 TODO:
+* Move linear indexing story from type to IndexStyle
 * Simplify to transmute(A, p) & transmute(A, val(p)) only.
 * Unwrapping for transmute(A, p) too
 * Efficient creation using names?
 * Efficient reductions? sum(parent) etc
+* Add a function such as transpose, adjoint, conj... to type + getindex? Hmm.
 
 =#
 
 #========== alla PermutedDimsArrays, mostly ==========#
 
-struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray,L} <: AbstractArray{T,N}
+struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray} <: AbstractArray{T,N}
     parent::AA
 end
 
@@ -65,10 +67,10 @@ function TransmutedDimsArray(data::AT, perm) where {AT <: AbstractArray{T,M}} wh
             "Every number in 1:$M must appear at least once in trasmutation $P, bud $d is missing"))
     end
     Q = invperm_zero(P, M)
-    L = IndexStyle(data) === IndexLinear() &&
-        allunique(filter(!iszero, P)) &&
-        issorted(Q)
-    TransmutedDimsArray{T,length(perm),P,Q,AT,L}(data)
+    # L = IndexStyle(data) === IndexLinear() &&
+    #     allunique(filter(!iszero, P)) &&
+    #     issorted(Q)
+    TransmutedDimsArray{T,length(perm),P,Q,AT}(data)
 end
 
 perm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = P
@@ -100,8 +102,8 @@ Base.dataids(A::TransmutedDimsArray) = Base.dataids(A.parent)
 
 Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
 
-Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
-    L ? IndexLinear() : IndexCartesian()
+# Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
+#     L ? IndexLinear() : IndexCartesian()
 # Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} = IndexCartesian()
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
@@ -112,14 +114,14 @@ Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
     val
 end
 
-@inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
-    @boundscheck checkbounds(A, i)
-    getindex(A.parent, i)
-end # plus one more method to resolve an ambiguity:
-@inline function Base.getindex(A::TransmutedDimsArray{T,1,P,Q,S,true}, i::Int) where {T,P,Q,S}
-    @boundscheck checkbounds(A, i)
-    getindex(A.parent, i)
-end
+# @inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
+#     @boundscheck checkbounds(A, i)
+#     getindex(A.parent, i)
+# end # plus one more method to resolve an ambiguity:
+# @inline function Base.getindex(A::TransmutedDimsArray{T,1,P,Q,S,true}, i::Int) where {T,P,Q,S}
+#     @boundscheck checkbounds(A, i)
+#     getindex(A.parent, i)
+# end
 
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
@@ -130,17 +132,17 @@ end
     @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
-@inline function Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S}
-    @boundscheck checkbounds(A, i)
-    @inbounds setindex!(A.parent, val, i)
-    val
-end
+# @inline function Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S}
+#     @boundscheck checkbounds(A, i)
+#     @inbounds setindex!(A.parent, val, i)
+#     val
+# end
 
 # Not entirely sure this is a good idea, but passing KW along...
-Base.@propagate_inbounds Base.getindex(A::TransmutedDimsArray; kw...) =
-    getindex(A.parent; kw...)
-Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
-    setindex!(A.parent, val; kw...)
+# Base.@propagate_inbounds Base.getindex(A::TransmutedDimsArray; kw...) =
+#     getindex(A.parent; kw...)
+# Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
+#     setindex!(A.parent, val; kw...)
 
 
 @inline genperm_zero(I::Tuple, perm::Dims{N}, gap=1) where {N} =
@@ -232,11 +234,11 @@ Transmute{perm}(x) where {perm} = x
 
     N = length(perm_plus)
 
-    L = issorted(iperm) &&
-        allunique(filter(!iszero, perm_plus)) &&
-        IndexStyle(data) === IndexLinear()
+    # L = issorted(iperm) &&
+    #     allunique(filter(!iszero, perm_plus)) &&
+    #     IndexStyle(data) === IndexLinear()
 
-    :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A,$L}(data) )
+    :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A}(data) )
 end
 
 using LinearAlgebra
@@ -265,16 +267,14 @@ Equivalent to `TransmutedDimsArray(A, perm′)`,
 but with some effort into making constant propagation work.
 """
 function transmute(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
-    P,Q,L = _transmute_calc(data, Tuple(perm))
+    P,Q = _transmute_calc(data, Tuple(perm))
 
     # P = map(n -> n isa Int && 0<n<=M ? n : 0, perm)
     # P = sanitise_p(data, perm)
 
     # Q = ps_inverse(data, P)
 
-    # L = Base.afoldl(<, Q...) # this is wrong
-
-    TransmutedDimsArray{T,length(perm),P,Q,AT,L}(data)
+    TransmutedDimsArray{T,length(perm),P,Q,AT}(data)
 end
 
 
@@ -308,9 +308,9 @@ function _transmute_calc(A::AbstractArray{T,M}, tup::Tuple{Vararg{Any,N}}) where
     end
 
     # Linear indexing?
-    L = (IndexStyle(A) === IndexLinear()) & all_unique(filter(!iszero, P)...) & are_increasing(Q...)
+    # L = (IndexStyle(A) === IndexLinear()) & all_unique(filter(!iszero, P)...) & are_increasing(Q...)
 
-    return P,Q,L
+    return P,Q
 end
 # @btime (()-> TransmuteDims._transmute_calc($(ones(1,1,1)), (1,5,3,2,4)) )()  # 0.029 ns, 0 allocations
 # @btime (()-> TransmuteDims._transmute_calc($(ones(1,1,1)), (2,nothing,3,1,0)) )()
