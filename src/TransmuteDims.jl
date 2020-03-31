@@ -84,6 +84,8 @@ Base.size(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
 Base.axes(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
     genperm_zero(axes(parent(A)), perm, Base.OneTo(1))
 
+Base.similar(A::TransmutedDimsArray, T::Type, dims::Base.Dims) = similar(parent(A), T, dims)
+
 Base.unsafe_convert(::Type{Ptr{T}}, A::TransmutedDimsArray{T}) where {T} =
     Base.unsafe_convert(Ptr{T}, parent(A))
 
