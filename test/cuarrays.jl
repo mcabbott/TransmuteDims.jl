@@ -1,6 +1,6 @@
 
-using CuArrays, TransmuteDims, Test
-CuArrays.allowscalar(false)
+using CUDA, TransmuteDims, Test
+CUDA.allowscalar(false)
 
 m = rand(4,4)
 tm = Transmute{(2,1)}(m)
