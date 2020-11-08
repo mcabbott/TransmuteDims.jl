@@ -1,6 +1,6 @@
 # TransmuteDims.jl
 
-[![Build Status](https://travis-ci.org/mcabbott/TransmuteDims.jl.svg?branch=master)](https://travis-ci.org/mcabbott/TransmuteDims.jl)
+[![Build Status](https://github.com/mcabbott/TransmuteDims.jl/workflows/CI/badge.svg)](https://github.com/mcabbott/TransmuteDims.jl/actions)
 
 In some senses Julia's arrays have trivial dimensions beyond `ndims(A)`:
 
