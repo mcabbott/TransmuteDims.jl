@@ -1,20 +1,6 @@
 module TransmuteDims
 
-export transmutedims, transmutedims!, Transmute, transmute
-
-using Compat # v3.1, for filter(f, Tuple)
-
-#=
-
-TODO:
-* Move linear indexing story from type to IndexStyle
-* Simplify to transmute(A, p) & transmute(A, val(p)) only.
-* Unwrapping for transmute(A, p) too
-* Efficient creation using names?
-* Efficient reductions? sum(parent) etc
-* Add a function such as transpose, adjoint, conj... to type + getindex? Hmm.
-
-=#
+export TransmutedDimsArray, transmute
 
 #========== alla PermutedDimsArrays, mostly ==========#
 
@@ -32,23 +18,33 @@ This is just like `PermutedDimsArray`, except that `perm′` need not be a permu
 
 * When number appears twice in `perm′`, then this works like `Diagonal` in those dimensions.
 
-See also: [`Transmute`](@ref) (faster constructor),
-[`transmutedims`](@ref) (eager version)
+By calling the type directly you get the simplest constructor.
+Calling instead [`transmute`](@ref) gives one which un-wraps nested objects,
+picks simpler alternatives, etc.
 
 # Examples
 ```jldoctest
-julia> A = rand(3,5,4);
+julia> TransmutedDimsArray('a':'c', (2,1)) # fails!!
 
-julia> B = TransmutedDimsArray(A, (3,0,1,2));
+julia> TransmutedDimsArray([3,5,7,11], (2,1))  # like transpose
+1×4 transmute(::Vector{Int64}, (0, 1)) with eltype Int64:
+ 3  5  7  11
+
+julia> A = rand(10, 20, 30);
+
+julia> B = TransmutedDimsArray(A, (3,0,1,2));  # like reshape + permute
 
 julia> size(B)
-(4, 1, 3, 5)
+(30, 1, 10, 20)
 
-julia> B[3,1,1,2] == A[1,2,3]
+julia> B[3,1,1,2] == A[1,2,3] == A[1,2,3,1]  # implicit trailing dimensions
 true
 
-julia> transmute(reshape(1:6,:,2), (1,1,2))
-3×3×2 TransmutedDimsArray(reshape(::UnitRange{Int64}, 3, 2), (1, 1, 2)) with eltype Int64:
+julia> B == TransmutedDimsArray(A, (3,4,1,2)) == permutedims(A[:,:,:,:], (3,4,1,2))
+true
+
+julia> TransmutedDimsArray(reshape(1:6,3,2), (1,1,2))  # generalised Diagonal
+3×3×2 transmute(reshape(::UnitRange{Int64}, 3, 2), (1, 1, 2)) with eltype Int64:
 [:, :, 1] =
  1  ⋅  ⋅
  ⋅  2  ⋅
@@ -64,17 +60,14 @@ function TransmutedDimsArray(data::AT, perm) where {AT <: AbstractArray{T,M}} wh
     P = map(n -> n in 1:M ? n : 0, Tuple(perm))
     for d in 1:M
         count(isequal(d), P) >= 1 || throw(ArgumentError(
-            "Every number in 1:$M must appear at least once in trasmutation $P, bud $d is missing"))
+            "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
     end
     Q = invperm_zero(P, M)
-    # L = IndexStyle(data) === IndexLinear() &&
-    #     allunique(filter(!iszero, P)) &&
-    #     issorted(Q)
     TransmutedDimsArray{T,length(perm),P,Q,AT}(data)
 end
 
-perm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = P
-iperm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
+getperm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = P
+getinvperm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
 
 Base.parent(A::TransmutedDimsArray) = A.parent
 
@@ -104,17 +97,29 @@ Base.dataids(A::TransmutedDimsArray) = Base.dataids(A.parent)
 
 Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
 
-# Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} =
-#     L ? IndexLinear() : IndexCartesian()
-# Base.IndexStyle(A::TransmutedDimsArray{T,N,P,Q,S,L}) where {T,N,P,Q,S,L} = IndexCartesian()
+# @generated function Base.IndexStyle(::Type{TT}) where {TT<:TransmutedDimsArray{T,N,P,Q,AT}} where {T,N,P,Q,AT}
+#     if IndexStyle(AT) == IndexLinear() && increasing_or_zero(P)
+#         :(IndexLinear())
+#     else
+#         :(IndexCartesian())
+#     end
+# end
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
-    @inbounds val = ifelse(off_diag(Val(perm), I), zero(T), getindex(A.parent, genperm_zero(I, iperm)...))
-    # @inbounds val = off_diag(Val(perm), I) ? zero(T) : getindex(A.parent, genperm_zero(I, iperm)...)
-    # not sure which is better
-    val
+    val = @inbounds getindex(A.parent, genperm_zero(I, iperm)...)
+    if unique_or_zero(Val(perm))
+        val
+    else
+        ifelse(is_off_diag(Val(perm), I), zero(T), val)
+    end
 end
+
+# @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, i::Int) where {T,N,perm,iperm}
+#     @boundscheck checkbounds(A, i)
+#     if IndexStyle(A) == IndexLinear() || @warn "wtf"
+#     val = @inbounds getindex(A.parent, i)
+# end
 
 # @inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
 #     @boundscheck checkbounds(A, i)
@@ -127,13 +132,21 @@ end
 
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
-    if off_diag(Val(perm), I)
+    if !unique_or_zero(Val(perm)) && is_off_diag(Val(perm), I)
         iszero(val) || throw(ArgumentError(
             "cannot set off-diagonal entry $I to a nonzero value ($val)"))
     end
     @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
+
+# @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, i::Int) where {T,N,perm,iperm}
+#     @boundscheck checkbounds(A, i)
+#     IndexStyle(A) == IndexLinear() || @warn "wtf"
+#     @inbounds setindex!(A.parent, val, i)
+#     val
+# end
+
 # @inline function Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S}
 #     @boundscheck checkbounds(A, i)
 #     @inbounds setindex!(A.parent, val, i)
@@ -154,7 +167,7 @@ end
 
 @inline sanitise_zero(P::Tuple, A) = map(i -> i in Base.OneTo(ndims(A)) ? i : 0, P)
 
-@inline function off_diag(P::Tuple, I::Tuple)
+@inline function is_off_diag(P::Tuple, I::Tuple)
     for a in 1:length(P)
         for b in 1:length(P)
             P[a] == P[b] || continue
@@ -163,13 +176,15 @@ end
     end
     false
 end
-@inline @generated function off_diag(::Val{P}, I::Tuple) where {P}
+@inline @generated function is_off_diag(::Val{P}, I::Tuple) where {P}
     out = []
     for a in 1:length(P), b in 1:length(P)
         P[a] == P[b] && push!(out,  :( I[$a] != I[$b] ))
     end
     Expr(:call, :|, out...)
 end
+
+#========== Printing ==========#
 
 function Base.showarg(io::IO, A::TransmutedDimsArray{T,N,perm}, toplevel) where {T,N,perm}
     print(io, "transmute(")
@@ -182,120 +197,232 @@ end
 # function Base.replace_in_print_matrix(A::Diagonal,i::Integer,j::Integer,s::AbstractString)
 function Base.replace_in_print_matrix(A::TransmutedDimsArray,
         i::Integer,j::Integer,s::AbstractString)
-    off_diag(perm(A), (i,j)) ? Base.replace_with_centered_mark(s) : s
+    is_off_diag(getperm(A), (i,j)) ? Base.replace_with_centered_mark(s) : s
 end
 function Base.replace_in_print_matrix(A::SubArray{<:Any,2,<:TransmutedDimsArray},
         i::Integer,j::Integer,s::AbstractString) where {S}
     ijk = (i, j, A.indices[3:end]...)
-    off_diag(perm(A.parent), ijk) ? Base.replace_with_centered_mark(s) : s
+    is_off_diag(getperm(A.parent), ijk) ? Base.replace_with_centered_mark(s) : s
 end
 
-function Base.show_nd(io::IO, A::TransmutedDimsArray, print_matrix::Function, label_slices::Bool)
-    allunique(filter(!iszero, perm(A))) &&
-        Core.invoke(Base.show_nd, Tuple{IO, AbstractArray, Function, Bool}, io, A, print_matrix, label_slices)
-    # Only run this version on generalised diagonal things?
-
-    ii = ntuple(d->firstindex(A, d+2), ndims(A)-2)
-    println(io, "[:, :, ", join(ii, ", "), "] =")
-    print_matrix(io, view(A, :, :, ii...))
-
-    prod(size(A)[3:end]) == 1 && return nothing
-    println(io, "\n")
-
-    jj = ntuple(d->lastindex(A, d+2), ndims(A)-2)
-    println(io, "[:, :, ", join(jj, ", "), "] =")
-    print_matrix(io, view(A, :, :, jj...))
-end
-
-
-#========== Constructors Transmute{} and transmute() ==========#
-
-"""
-    Transmute{perm′}(A::AbstractArray)
-    transmute(A, Val(perm′))
-
-Equivalent to `TransmutedDimsArray(A, perm′)`, but computes the inverse
-(and performs sanity checks) at compile-time.
-
-When `A` is a `PermutedDimsArray`, `TransmutedDimsArray` or a `Transpose{<:Number}`,
-the constructor adjust adjust perm′ to work directly on `parent(A)`, and wrap that.
-
-"""
-struct Transmute{perm} end
-
-Transmute{perm}(x) where {perm} = x
-
-@generated function Transmute{perm}(data::A) where {A<:AbstractArray{T,M}} where {T,M,perm}
-    perm_plus = sanitise_zero(perm, data)
-    for d in 1:M
-        count(isequal(d), perm_plus) >= 1 || throw(ArgumentError(
-            "Every number in 1:$M must appear at least once in trasmutation $perm_plus, bud $d is missing"))
-    end
-
-    iperm = invperm_zero(perm_plus, M)
-
-    N = length(perm_plus)
-
-    # L = issorted(iperm) &&
-    #     allunique(filter(!iszero, perm_plus)) &&
-    #     IndexStyle(data) === IndexLinear()
-
-    :( TransmutedDimsArray{$T,$N,$perm_plus,$iperm,$A}(data) )
-end
+#========== Types ==========#
 
 using LinearAlgebra
-const LazyTranspose = Union{Transpose{<:Number}, Adjoint{<:Real}}
 
-@generated function Transmute{perm}(data::LazyTranspose) where {perm}
-    new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
-    :( Transmute{$new_perm}(data.parent) )
-end
+LazyTranspose{AT} = Union{
+    Transpose{T,AT} where T<:Number,
+    Adjoint{T,AT} where T<:Real,
+}
 
-LazyPermute{P} = Union{
-    PermutedDimsArray{T,N,P} where {T,N},
-    TransmutedDimsArray{T,N,P}  where {T,N} }
+getperm(A::LazyTranspose{<:AbstractVector}) = (0,1)
+getperm(A::LazyTranspose{<:AbstractMatrix}) = (2,1)
+getinvperm(A::LazyTranspose{<:AbstractVector}) = (2,)
+getinvperm(A::LazyTranspose{<:AbstractMatrix}) = (2,1)
 
-@generated function Transmute{perm}(data::LazyPermute{inner}) where {perm,inner}
-    new_perm = map(d -> d==0 ? 0 : inner[d], sanitise_zero(perm, data))
-    :( Transmute{$new_perm}(data.parent) )
-end
+LazyPermute{P,AT} = Union{
+    PermutedDimsArray{T,N,P,Q,AT} where {T,N,Q},
+    TransmutedDimsArray{T,N,P,Q,AT} where {T,N,Q},
+}
 
-transmute(data::AbstractArray, ::Val{perm}) where {perm} = Transmute{perm}(data)
+getperm(A::PermutedDimsArray{T,N,P}) where {T,N,P} = P
+getinvperm(A::PermutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
+
+#========== New constructor transmute() ==========#
 
 """
     transmute(A, perm′)
+    transmute(A, Val(perm′))
 
-Equivalent to `TransmutedDimsArray(A, perm′)`,
-but with some effort into making constant propagation work.
+Similar to `TransmutedDimsArray(A, perm′)`, but:
+
+* When `A` is a `PermutedDimsArray`, `TransmutedDimsArray` or a `Transpose{<:Number}`,
+  the constructor adjust adjust perm′ to work directly on `parent(A)`, and wrap that.
+
+* When the permutation simply inserts a trivial dimension, it may `reshape` instead of wrapping.
+
+* If the permutation is wrapped in `Val`, then computing its inverse (and performing sanity checks)
+  can be done at compile-time.
+
+# Examples
+```jldoctest; setup=:(using Random; Random.seed!(42);)
+julia> A = transpose(rand(Int8, 4, 2))
+2×4 transpose(::Matrix{Int8}) with eltype Int8:
+ -112  -108   -92   -54
+  106   -75  -112  -105
+
+julia> B = transmute(A, (3,2,1))  # unwraps transpose, and then reshapes
+1×4×2 Array{Int8, 3}:
+[:, :, 1] =
+ -112  -108  -92  -54
+
+[:, :, 2] =
+ 106  -75  -112  -105
+
+julia> B == TransmutedDimsArray(A, (0,2,1))  # same values, different type
+true
+
+julia> transmute(A, (2,2,0,1))
+4×4×1×2 transmute(::Matrix{Int8}, (1, 1, 0, 2)) with eltype Int8:
+[:, :, 1, 1] =
+ -112     ⋅    ⋅    ⋅
+    ⋅  -108    ⋅    ⋅
+    ⋅     ⋅  -92    ⋅
+    ⋅     ⋅    ⋅  -54
+
+[:, :, 1, 2] =
+ 106    ⋅     ⋅     ⋅
+   ⋅  -75     ⋅     ⋅
+   ⋅    ⋅  -112     ⋅
+   ⋅    ⋅     ⋅  -105
+
+julia> ans == transmute(B, (2,2,1,3))
+true
+```
 """
-function transmute(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
-    P,Q = _transmute_calc(data, Tuple(perm))
+transmute(data::AbstractArray, perm) = _transmute(data, Tuple(perm))
 
-    # P = map(n -> n isa Int && 0<n<=M ? n : 0, perm)
-    # P = sanitise_p(data, perm)
+# First dispatch is on perm, second is _transmute(::SomeArray, ::Any)
 
-    # Q = ps_inverse(data, P)
-
-    TransmutedDimsArray{T,length(perm),P,Q,AT}(data)
+function _transmute(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
+    P,Q = _calc_perms(data, Tuple(perm))
+    if P == (2,1) && T<:Number
+        transpose(data) # maybe?
+    elseif P == 1:length(P)
+        data
+    else
+        TransmutedDimsArray{T,length(P),P,Q,AT}(data)
+    end
 end
 
+# Reshaping instead of wrapping:
 
-#=
-sanitise_p(A::AbstractArray{T,M}, tup::Tuple{Vararg{Any,N}}) where {T,M,N} =
-     map(n -> n isa Int && 0<n<=M ? n : 0, tup)
-
-ps_inverse(A::AbstractArray{T,M}, P::Tuple{Vararg{Any,N}}) where {T,M,N} =
-    ntuple(M) do d
-        # c = ntuple(n -> P[n]==d ? 1 : 0, N)
-        # sum(c)==1 || error("Every number in 1:$N must occur exactly once in (sanitised) trasmutation $P, but one appears $(sum(c)) times.")
-
-        w = ntuple(n -> P[n]==d ? n : 0, N)
-        sum(w)
+function _transmute(data::AT, perm) where {AT <: DenseArray{T,M}} where {T,M}
+    P = sanitise_zero(perm, data)
+    if increasing_or_zero(P)
+        for d in 1:M
+            count(isequal(d), P) >= 1 || throw(ArgumentError(
+                "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
+        end
+        S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
+        reshape(data, S)
+    else
+        invoke(_transmute, Tuple{AbstractArray, Any}, data, P)
     end
-=#
+end
 
-function _transmute_calc(A::AbstractArray{T,M}, tup::Tuple{Vararg{Any,N}}) where {T,M,N}
-# function _transmute_calc(A::AbstractArray{T,M}, tup::NTuple{N, Int}) where {T,M,N}
+# Unwapping of other transpose etc:
+
+function _transmute(data::LazyTranspose{<:AbstractVector}, perm)
+    new_perm = map(d -> d==1 ? 0 : d==2 ? 1 : d, perm)
+    _transmute(parent(data), new_perm)
+end
+
+function _transmute(data::LazyTranspose{<:AbstractMatrix}, perm)
+    new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
+    _transmute(parent(data), new_perm)
+end
+
+function _transmute(data::LazyPermute{inner}, perm) where {inner}
+    new_perm = map(d -> d==0 ? 0 : inner[d], sanitise_zero(perm, data))
+    _transmute(parent(data), new_perm)
+end
+
+function _transmute(data::Diagonal, perm)
+    new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
+    _transmute(parent(data), new_perm)
+end
+
+#========== Version with Val(perm) ==========#
+
+@generated function transmute(data::AbstractArray, ::Val{perm}) where {perm}
+    _trex(:data, data, perm)
+end
+
+# Identical list of cases:
+
+function _trex(ex, AT, perm) #  ::Type{AT}, perm) where {AT}
+    T = eltype(AT)
+    P,Q = _calc_perms(AT, perm)
+
+    if P == (2,1) && T<:Number
+        :(transpose($ex))
+    elseif P == 1:length(P)
+        ex
+    else
+        :(TransmutedDimsArray{$T,$(length(P)),$P,$Q,$AT}($ex))
+    end
+end
+
+function _trex(ex, ::Type{AT}, perm) where {AT <: DenseArray{T,M}} where {T,M}
+    P = sanitise_zero(perm, AT)
+    if increasing_or_zero(P)
+        for d in 1:M
+            count(isequal(d), P) >= 1 || throw(ArgumentError(
+                "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
+        end
+        S = map(d -> d==0 ? :(Base.OneTo(1)) : :(axes($ex,$d)), P)
+        :(reshape($ex, ($(S...),)))
+    else
+        invoke(_trex, Tuple{Any, Any, Any}, ex, AT, P)
+    end
+end
+
+function _trex(ex, ::Type{AT}, perm) where {AT<:LazyTranspose{PT}} where {PT<:AbstractVector}
+    new_perm = map(d -> d==1 ? 0 : d==2 ? 1 : d, perm)
+    _trex(:(parent($ex)), PT, new_perm)
+end
+
+function _trex(ex, ::Type{AT}, perm) where {AT<:LazyTranspose{PT}} where {PT<:AbstractMatrix}
+    new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
+    _trex(:(parent($ex)), PT, new_perm)
+end
+
+function _trex(ex, ::Type{AT}, perm) where {AT<:LazyPermute{inner,PT}} where {inner,PT}
+    new_perm = map(d -> d==0 ? 0 : inner[d], sanitise_zero(perm, AT))
+    _trex(:(parent($ex)), PT, new_perm)
+end
+
+function _trex(ex, ::Type{AT}, perm) where {AT<:Diagonal{T,PT}} where {T,PT}
+    new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
+    _trex(:(parent($ex)), PT, new_perm)
+end
+
+#========== Utils ==========#
+
+@inline function increasing_or_zero(perm)
+    prev = 0
+    for d in perm
+        d == 0 && continue
+        d <= prev && return false
+        prev = max(prev, d)
+    end
+    return true
+end
+@generated increasing_or_zero(::Val{perm}) where {perm} = increasing_or_zero(perm)
+
+@inline function unique_or_zero(perm)
+    for i in 1:length(perm)
+        d = perm[i]
+        d == 0 && continue
+        d in perm[i+1:end] && return false
+    end
+    return true
+end
+@generated unique_or_zero(::Val{perm}) where {perm} = unique_or_zero(perm)
+# unique_or_zero(perm::Tuple) = _unique_or_zero(perm...)
+# _unique_or_zero(q) = true
+# function _unique_or_zero(p, qs...) # This works but isn't great
+#     rest = _unique_or_zero(qs...)
+#     iszero(p) && return rest
+#     p in qs && return false
+#     return rest
+# end
+
+_calc_perms(data::AbstractArray, tup::Tuple) = _calc_perms(typeof(data), tup)
+
+function _calc_perms(::Type{AT}, tup::Tuple) where {AT<:AbstractArray{T,M}} where {T,M}
+    N = length(tup)
+
     # Sanitise input "perm"
     P = map(n -> n isa Int && 0<n<=M ? n : 0, tup)
 
@@ -303,112 +430,13 @@ function _transmute_calc(A::AbstractArray{T,M}, tup::Tuple{Vararg{Any,N}}) where
     Q = ntuple(M) do d
         c = ntuple(n -> P[n]==d ? 1 : 0, N)
         sum(c)>=1 || throw(ArgumentError(
-            "Every number in 1:$M must appear at least once in trasmutation $P, bud $d is missing"))
+            "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
 
         w = ntuple(n -> P[n]==d ? n : 0, N)
         maximum(w)
     end
 
-    # Linear indexing?
-    # L = (IndexStyle(A) === IndexLinear()) & all_unique(filter(!iszero, P)...) & are_increasing(Q...)
-
     return P,Q
-end
-# @btime (()-> TransmuteDims._transmute_calc($(ones(1,1,1)), (1,5,3,2,4)) )()  # 0.029 ns, 0 allocations
-# @btime (()-> TransmuteDims._transmute_calc($(ones(1,1,1)), (2,nothing,3,1,0)) )()
-
-# @btime transmute($(ones(1,1,1)), (0,2,3,1));  # slow!
-# @btime (() -> transmute($(ones(1,1,1)), (0,2,3,1)))();  # slow!
-# @code_warntype (() -> TransmutedDimsArray(ones(1,1,1), (0,2,3,1)))() # TDA{Float64,4,_A,_B,Array{...
-
-are_increasing(x, y, zs...) = (x<y) & are_increasing(y, zs...)
-are_increasing(x) = true
-
-all_unique(p, qs...) = !(p in qs) & all_unique(qs...)
-all_unique(x) = true
-
-# @btime allunique((1,2,3))  # 135.309 ns (4 allocations: 480 bytes)
-# @btime all_unique((1,2,3)) #   1.975 ns (0 allocations: 0 bytes)
-
-#========== transmutedims() uses permutedims() ==========#
-
-_transmutedims_doc = """
-    transmutedims(A, perm′)
-    transmutedims!(dst, src, perm′)
-
-These are just like `permutedims` / `permutedims!`, except that `perm′` need not
-be a permutation of `1:ndims(A)`. Any number outside this range inserts a trivial
-dimension into the output, size 1, fitting with `size(A,99) == 1`.
-And any repeated number places that dimension along a diagonal.
-
-See also: [`TransmutedDimsArray`](@ref), [`Transmute`](@ref).
-
-# Examples
-```jldoctest
-julia> A = rand(3,5,4);
-
-julia> B = transmutedims(A, (3,4,1,2)); # A valid permutation of 1:4
-
-julia> size(B)
-(4, 1, 3, 5)
-
-julia> B[3,1,1,2] == A[1,2,3]
-true
-
-julia> B == permutedims(reshape(A,size(A)...,1), (3,4,1,2))
-true
-
-julia> C = zeros(axes(B));
-
-julia> transmutedims!(C, A, (3,0,1,2)); # OK to replace 4 with 0
-
-julia> C == B
-true
-
-julia> transmutedims(reshape((1:10),2,:), (1,2,1))
-2×5×2 Array{Int64,3}:
-[:, :, 1] =
- 1  3  5  7  9
- 0  0  0  0  0
-
-[:, :, 2] =
- 0  0  0  0   0
- 2  4  6  8  10
-```
-"""
-
-@doc _transmutedims_doc
-function transmutedims(src::AbstractArray{T,N}, perm) where {T,N}
-    length(perm) >= ndims(src) || throw(ArgumentError("length(perm) is less than ndims(src)"))
-    safe_perm = filter(d -> d in 1:N, Tuple(perm))#::NTuple{N, Int}
-    final_ax = map(d -> d in 1:N ? axes(src, d) : Base.OneTo(1), Tuple(perm))
-    if safe_perm == 1:ndims(src)
-        reshape(copy(src), final_ax...)
-    elseif all_unique(filter(!iszero, safe_perm)...)
-        reshape(permutedims(src, safe_perm), final_ax...)
-    else
-        collect(transmute(src, perm))
-    end
-end
-
-@doc _transmutedims_doc
-function transmutedims!(dst::AbstractArray, src::AbstractArray{T,N}, perm::Tuple) where {T,N}
-    length(perm) == ndims(dst) || throw(ArgumentError("length(perm) does not match ndims(dst)"))
-    safe_perm = filter(d -> d in 1:N, Tuple(perm))
-    permed_ax = map(d -> axes(src, d), safe_perm)
-    for (i,d) in enumerate(perm)
-        if d in 1:N
-            axes(dst, i) == axes(src, d) || throw(DimensionMismatch("destination tensor of incorrect size"))
-        end
-    end
-    if safe_perm == 1:ndims(src)
-        copyto!(dst, src)
-    elseif all_unique(filter(!iszero, safe_perm)...)
-        permutedims!(reshape(dst, permed_ax...), src, safe_perm)
-    else
-        copyto!(dst, transmute(src, perm))
-    end
-    dst
 end
 
 #========== The rest ==========#

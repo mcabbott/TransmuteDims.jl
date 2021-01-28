@@ -1,5 +1,8 @@
-using TransmuteDims, Random, Test, OffsetArrays
-using TransmuteDims: TransmutedDimsArray, _transpose
+using TransmuteDims
+using Test, LinearAlgebra, Random
+
+transmutedims(A,p) = collect(transmute(A,p)) # for now!
+transmutedims!(Z,A,p) = (Z .= transmute(A,p))
 
 @testset "eager" begin
 
@@ -16,7 +19,6 @@ using TransmuteDims: TransmutedDimsArray, _transpose
 
     @test_throws ArgumentError transmutedims(m, (1,))    # too few
     @test_throws ArgumentError transmutedims(m, (1,0,0)) # 2 doesn't appear
-    # @test_throws Exception transmutedims(m, (1,2,1)) # 1 is repeated
 
     @test_throws ArgumentError transmutedims!(o314, m, (1,))
     @test_throws Exception transmutedims!(o314, m, (1,0,0))
@@ -28,18 +30,18 @@ end
 @testset "lazy" begin
 
     m = rand(1:99, 3,4)
-    @test Transmute{(1,0,2)}(m) == reshape(m, 3,1,4)
-    @test Transmute{(1,999,2)}(m) == reshape(m, 3,1,4)
-    @test Transmute{(1,nothing,2)}(m) == reshape(m, 3,1,4)
     @test transmute(m, (1,0,2)) == reshape(m, 3,1,4)
     @test transmute(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
     @test transmute(m, (2,nothing,1)) == reshape(transpose(m), 4,1,3)
+    @test transmute(m, Val((1,0,2))) == reshape(m, 3,1,4)
+    @test transmute(m, Val((2,99,1))) == reshape(transpose(m), 4,1,3)
+    @test transmute(m, Val((2,nothing,1))) == reshape(transpose(m), 4,1,3)
     @test TransmutedDimsArray(m, (1,0,2)) == reshape(m, 3,1,4)
     @test TransmutedDimsArray(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
     @test TransmutedDimsArray(m, (2,nothing,1)) == reshape(transpose(m), 4,1,3)
 
-    g = Transmute{(1,0,2)}(m)
-    t = Transmute{(2,0,1)}(m)
+    g = TransmutedDimsArray(m, (1,0,2)) # could be an Array
+    t = transmute(m, (2,0,1))
 
     # setindex!
     g[3,1,4] = 222
@@ -57,33 +59,56 @@ end
 
     # dropdims
     @test dropdims(g, dims=2) == m
-    @test dropdims(g, dims=2) isa TransmutedDimsArray{Int,2,(1,2)}
+    @test dropdims(g, dims=2) isa Matrix # now unwraps!
     @test dropdims(t, dims=2) == m'
-    @test dropdims(t, dims=2) isa TransmutedDimsArray{Int,2,(2,1)}
+    @test dropdims(t, dims=2) isa Transpose
 
     h = reshape(1:9, 3,1,3)
-    f = Transmute{(0,3,2,1)}(h)
+    f = transmute(h, (0,3,2,1))
+
     @test size(f) == (1,3,1,3)
     @test dropdims(f, dims=1) == permutedims(h, (3,2,1))
     @test dropdims(f, dims=3).parent == reshape(h,3,3)
     @test dropdims(f, dims=(1,3)) == reshape(h,3,3)'
     @test dropdims(f, dims=(3,1)) == reshape(h,3,3)'
 
+    # reductions
+    @test sum(transmute(m,(2,1,3))) == sum(m)
+    @test sum(transmute(m,(1,1,2))) == sum(m)
+
     # errors
-    @test_throws ArgumentError Transmute{(2,)}(m)
-    # @test_throws ArgumentError Transmute{(2,0,1,0,2)}(m)
     @test_throws ArgumentError transmute(m, (2,))
-    # @test_throws ArgumentError transmute(m, (2,0,1,0,2))
+    @test_throws ArgumentError transmute(m, (2,0,3,0,2))
+    @test_throws ArgumentError transmute(m, Val((2,)))
+    @test_throws ArgumentError transmute(m, Val((2,0,3,0,2)))
     @test_throws Exception TransmutedDimsArray(m, (2,))
-    # @test_throws Exception TransmutedDimsArray(m, (2,0,1,0,2))
+    @test_throws Exception TransmutedDimsArray(m, (2,0,3,0,2))
 
-    # unwrapping
-    @test Transmute{(2,0,1)}(m') === Transmute{(1,0,2)}(m)
+    # unwrapping: LinearAlgebra
+    @test transmute(m', (2,0,1)) == transmute(m, (1,0,2)) # both are reshapes
+    @test transmute(m', (2,0,1)) isa Array
+    @test transmute(m', Val((2,0,1))) isa Array
+    @test transmute(m, (1,0,2)) isa Array
+    @test transmute(m, Val((1,0,2))) isa Array
     v = m[:,1]
-    @test Transmute{(2,3,1)}(v |> transpose) === Transmute{(1,0,0)}(v)
+    @test transmute(v |> transpose, (2,3,1)) == transmute(v, (1,0,0))
+    @test transmute(v |> transpose, (2,3,1)) isa Array
+    @test transmute(v |> transpose, Val((2,3,1))) isa Array
 
-    @test Transmute{(2,nothing,1)}(PermutedDimsArray(m,(2,1))) === Transmute{(1,0,2)}(m)
-    @test Transmute{(2,nothing,1)}(TransmutedDimsArray(m,(2,1))) === Transmute{(1,0,2)}(m)
+    @test transmute(Diagonal(1:10), (3,1)) === TransmutedDimsArray(1:10, (0,1))
+    @test transmute(Diagonal(rand(10)), (3,1)) isa Matrix
+    @test transmute(Diagonal(rand(10)), Val((3,1))) isa Matrix
+    @test transmute(transmute(1:10, (1,1)), (3,1)) === TransmutedDimsArray(1:10, (0,1))
+    @test transmute(transmute(1:10, (1,1)), Val((3,1))) === TransmutedDimsArray(1:10, (0,1))
+
+    # unwrapping: permutations
+    @test transmute(PermutedDimsArray(m,(2,1)), (2,nothing,1)) == transmute(m, (1,0,2))
+    @test transmute(PermutedDimsArray(m,(2,1)), (2,nothing,1)) isa Array
+    @test transmute(PermutedDimsArray(m,(2,1)), Val((2,nothing,1))) isa Array
+    @test transmute(TransmutedDimsArray(m,(2,1)), (2,nothing,1)) isa Array
+    @test transmute(TransmutedDimsArray(m,(2,1)), Val((2,nothing,1))) isa Array
+
+    @test transmute(PermutedDimsArray(m,(2,1)), (1,3,2)) === transmute(m, (2,3,1))
 
     x = rand(1:99, 5,4,3,2);
     x1 = permutedims(x, (4,1,2,3))
@@ -97,41 +122,35 @@ end
     @test TransmutedDimsArray(x1, (2,0,1,4,3)) == TransmutedDimsArray(x3, (2,0,1,4,3))
 
     # unwrapping caused by transpose etc
-    @test transpose(Transmute{(2,1)}(m)) isa TransmutedDimsArray{Int,2,(1,2)}
-    @test adjoint(Transmute{(0,1)}(v)) isa TransmutedDimsArray{Int,2,(1,0)}
+    @test transpose(TransmutedDimsArray(m, (2,1))) isa Matrix
+    v = m[:,1]
+    @test adjoint(TransmutedDimsArray(v, (0,1))) isa Matrix
 
     # linear indexing, for more constructors
     y = zeros(1,2,3);
     @test_skip IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear()
-    @test_skip IndexStyle(Transmute{(1,0,2,0,3)}(y)) == IndexLinear()
     @test_skip IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
     @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
-    @test IndexStyle(Transmute{(3,0,2,0,1)}(y)) == IndexCartesian()
     @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
 
     @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
-
-end
-@testset "offset" begin
-
-    o34 = ones(11:13, 21:24)
-    rand!(o34)
-
-    @test transmutedims(o34, (2,1)) == permutedims(o34)
-    @test axes(transmutedims(o34, (2,0,1))) == (21:24, 1:1, 11:13)
-
-    @test Transmute{(2,0,1)}(o34)[21, 1, 13] == o34[13, 21]
 
 end
 @testset "allocations" begin
 
     y = ones(1,2,3);
 
-    @allocated Transmute{(3,2,0,1)}(y)
-    @test 17 > @allocated Transmute{(3,2,0,1)}(y)
-
+    # wrap
     @allocated transmute(y, (3,2,0,1))
-    @test 129 > @allocated transmute(y, (3,2,0,1))
+    @test 97 > @allocated transmute(y, (3,2,0,1))
+    @allocated transmute(y, Val((3,2,0,1)))
+    @test 17 > @allocated transmute(y, Val((3,2,0,1)))
+
+    # reshape
+    @allocated transmute(y, (1,2,0,3))
+    @test 129 > @allocated transmute(y, (1,2,0,3))
+    @allocated transmute(y, Val((1,2,0,3)))
+    @test 129 > @allocated transmute(y, Val((1,2,0,3)))
 
 end
 @testset "from Base" begin
@@ -197,40 +216,53 @@ end
     # v = [1,2,3]
     # @test transmutedims(v) == [1 2 3]
 end
-@testset "transpose" begin
+using OffsetArrays, Random
+@testset "offset" begin
 
-    @test size(_transpose(ones(1,2,3,4), (2,4))) == (1,4,3,2)
-    @test size(_transpose(ones(1,2,3,4), Val((2,4)))) == (1,4,3,2)
+    o34 = ones(11:13, 21:24)
+    rand!(o34)
 
-    @test size(_transpose(ones(1,2,3), (2,5))) == (1,1,3,1,2)
-    @test size(_transpose(ones(1,2,3), Val((2,5)))) == (1,1,3,1,2)
+    @test transmute(o34, (2,1)) == permutedims(o34)
+    @test axes(transmute(o34, (2,0,1))) == (21:24, 1:1, 11:13)
 
-end
-@testset "diagonal" begin
-
-    for d in [
-        TransmutedDimsArray(ones(Int,3), (1,1)),
-        transmute(ones(Int,3), (1,1)),
-        Transmute{(1,1)}(ones(Int,3)),
-        ]
-        @test d == [1 0 0; 0 1 0; 0 0 1]
-        @test d[2] == 0
-        @test (d[3,3] = 33) == 33
-        @test d[3,3] == 33
-        @test (d[2,1] = 0) == 0
-        @test_throws ArgumentError d[1,2] = 99
-        @test IndexStyle(d) == IndexCartesian()
-
-        @test sum(d .+ 10) == 90 + 1 + 33
-    end
-
-    r = rand(3)
-    q = TransmutedDimsArray(r, (1,0,1,1))
-    @test q[2,1,2,2] == r[2]
-    @test q[2,1,2,3] == 0
-    @test_throws ArgumentError q[1,1,1,3] = 99
-
-    # eager
-    @test q == transmutedims(r, (1,0,1,1))
+    @test transmute(o34, (2,0,1))[21, 1, 13] == o34[13, 21]
 
 end
+
+# @testset "transpose" begin
+
+#     @test size(_transpose(ones(1,2,3,4), (2,4))) == (1,4,3,2)
+#     @test size(_transpose(ones(1,2,3,4), Val((2,4)))) == (1,4,3,2)
+
+#     @test size(_transpose(ones(1,2,3), (2,5))) == (1,1,3,1,2)
+#     @test size(_transpose(ones(1,2,3), Val((2,5)))) == (1,1,3,1,2)
+
+# end
+# @testset "diagonal" begin
+
+#     for d in [
+#         TransmutedDimsArray(ones(Int,3), (1,1)),
+#         transmute(ones(Int,3), (1,1)),
+#         Transmute{(1,1)}(ones(Int,3)),
+#         ]
+#         @test d == [1 0 0; 0 1 0; 0 0 1]
+#         @test d[2] == 0
+#         @test (d[3,3] = 33) == 33
+#         @test d[3,3] == 33
+#         @test (d[2,1] = 0) == 0
+#         @test_throws ArgumentError d[1,2] = 99
+#         @test IndexStyle(d) == IndexCartesian()
+
+#         @test sum(d .+ 10) == 90 + 1 + 33
+#     end
+
+#     r = rand(3)
+#     q = TransmutedDimsArray(r, (1,0,1,1))
+#     @test q[2,1,2,2] == r[2]
+#     @test q[2,1,2,3] == 0
+#     @test_throws ArgumentError q[1,1,1,3] = 99
+
+#     # eager
+#     @test q == transmutedims(r, (1,0,1,1))
+
+# end
