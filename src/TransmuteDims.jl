@@ -235,8 +235,8 @@ getinvperm(A::PermutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
 
 Similar to `TransmutedDimsArray(A, perm′)`, but:
 
-* When `A` is a `PermutedDimsArray`, `TransmutedDimsArray` or a `Transpose{<:Number}`,
-  the constructor adjust adjust perm′ to work directly on `parent(A)`, and wrap that.
+* When `A` is a `PermutedDimsArray`, `Transpose{<:Number}`, `Adjoint{<:Real}`, or `Diagonal`,
+  the constructor will adjust `perm′` to work directly on `parent(A)`.
 
 * When the permutation simply inserts a trivial dimension, it may `reshape` instead of wrapping.
 

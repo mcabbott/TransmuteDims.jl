@@ -142,17 +142,19 @@ end
 
     y = ones(1,2,3);
 
-    # wrap
-    @allocated transmute(y, (3,2,0,1))
-    @test 97 > @allocated transmute(y, (3,2,0,1))
-    @allocated transmute(y, Val((3,2,0,1)))
-    @test 17 > @allocated transmute(y, Val((3,2,0,1)))
+    if VERSION >= v"1.6-"
+        # wrap
+        @allocated transmute(y, (3,2,0,1))
+        @test 97 > @allocated transmute(y, (3,2,0,1))
+        @allocated transmute(y, Val((3,2,0,1)))
+        @test 17 > @allocated transmute(y, Val((3,2,0,1)))
 
-    # reshape
-    @allocated transmute(y, (1,2,0,3))
-    @test 129 > @allocated transmute(y, (1,2,0,3))
-    @allocated transmute(y, Val((1,2,0,3)))
-    @test 129 > @allocated transmute(y, Val((1,2,0,3)))
+        # reshape
+        @allocated transmute(y, (1,2,0,3))
+        @test 129 > @allocated transmute(y, (1,2,0,3))
+        @allocated transmute(y, Val((1,2,0,3)))
+        @test 129 > @allocated transmute(y, Val((1,2,0,3)))
+    end
 
 end
 @testset "from Base" begin
