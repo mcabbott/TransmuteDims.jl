@@ -286,7 +286,9 @@ transmute(data::AbstractArray, perm) = _transmute(data, Tuple(perm))
 function _transmute(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
     P,Q = _calc_perms(data, Tuple(perm))
     if P == (2,1) && T<:Number
-        transpose(data) # maybe?
+        transpose(data)
+    elseif P == (1,1)
+        Diagonal(data)
     elseif P == 1:length(P)
         data
     else
@@ -346,6 +348,8 @@ function _trex(ex, AT, perm) #  ::Type{AT}, perm) where {AT}
 
     if P == (2,1) && T<:Number
         :(transpose($ex))
+    elseif P == (1,1)
+        :(Diagonal($ex))
     elseif P == 1:length(P)
         ex
     else

@@ -40,6 +40,10 @@ end
     @test TransmutedDimsArray(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
     @test TransmutedDimsArray(m, (2,nothing,1)) == reshape(transpose(m), 4,1,3)
 
+    v = m[:,1]
+    @test transmute(v, (1,1)) isa Diagonal
+    @test transmute(v, Val((1,1))) isa Diagonal
+
     g = TransmutedDimsArray(m, (1,0,2)) # could be an Array
     t = transmute(m, (2,0,1))
 
@@ -90,7 +94,6 @@ end
     @test transmute(m', Val((2,0,1))) isa Array
     @test transmute(m, (1,0,2)) isa Array
     @test transmute(m, Val((1,0,2))) isa Array
-    v = m[:,1]
     @test transmute(v |> transpose, (2,3,1)) == transmute(v, (1,0,0))
     @test transmute(v |> transpose, (2,3,1)) isa Array
     @test transmute(v |> transpose, Val((2,3,1))) isa Array
@@ -98,8 +101,8 @@ end
     @test transmute(Diagonal(1:10), (3,1)) === TransmutedDimsArray(1:10, (0,1))
     @test transmute(Diagonal(rand(10)), (3,1)) isa Matrix
     @test transmute(Diagonal(rand(10)), Val((3,1))) isa Matrix
-    @test transmute(transmute(1:10, (1,1)), (3,1)) === TransmutedDimsArray(1:10, (0,1))
-    @test transmute(transmute(1:10, (1,1)), Val((3,1))) === TransmutedDimsArray(1:10, (0,1))
+    @test transmute(TransmutedDimsArray(1:10, (1,1)), (3,1)) === TransmutedDimsArray(1:10, (0,1))
+    @test transmute(TransmutedDimsArray(1:10, (1,1)), Val((3,1))) === TransmutedDimsArray(1:10, (0,1))
 
     # unwrapping: permutations
     @test transmute(PermutedDimsArray(m,(2,1)), (2,nothing,1)) == transmute(m, (1,0,2))
@@ -123,7 +126,6 @@ end
 
     # unwrapping caused by transpose etc
     @test transpose(TransmutedDimsArray(m, (2,1))) isa Matrix
-    v = m[:,1]
     @test adjoint(TransmutedDimsArray(v, (0,1))) isa Matrix
 
     # linear indexing, for more constructors
