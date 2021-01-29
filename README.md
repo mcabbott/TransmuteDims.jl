@@ -18,7 +18,7 @@ size(transmute(A, (4,2,3,5,1)))   # (1, 20, 30, 1, 10)
 
 Here `(4,2,3,5,1)` is a valid permutation of `1:5`, but the positions of `4,5` don't matter, so in fact this is normalised to `(0,2,3,0,1)`. Zeros indicate trivial output dimensions.
 
-And second, you may also repeat numbers, to place an input dimension "diagonally" into several output dimensions:
+Second, you may also repeat numbers, to place an input dimension "diagonally" into several output dimensions:
 
 ```julia
 using LinearAlgebra
@@ -42,14 +42,15 @@ transmute(Diagonal(rand(10)), (3,1)) isa Matrix
 
 Calling the constructor directly `TransmutedDimsArray(A, (3,2,0,1))` simply applies the wrapper. 
 There is also a variant `transmute(A, Val((3,2,0,1)))` which works out any un-wrapping at compile-time:
+
 ```julia
 using BenchmarkTools
 @btime transmute($A, (2,3,1));           # 376.985 ns (3 allocations: 80 bytes)
 @btime PermutedDimsArray($A, (2,3,1));   # 386.738 ns (4 allocations: 176 bytes)
+@btime transmute($A, Val((2,3,1)));      #   1.430 ns (0 allocations: 0 bytes)
 
 @btime transmute($A, (1,2,0,3));         #  56.164 ns (2 allocations: 128 bytes)
-
-@btime transmute($A, Val((2,3,1)));      #  
+@btime reshape($A, (10,20,1,30));        #  34.479 ns (1 allocation: 80 bytes)
 ```
 
 There was going to be an eager variant `transmutedims(A, (3,2,0,1))` but for now that's absent.
