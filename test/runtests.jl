@@ -98,6 +98,10 @@ end
     @test transmute(v |> transpose, (2,3,1)) isa Array
     @test transmute(v |> transpose, Val((2,3,1))) isa Array
 
+    @test transmute((1:3)',(2,2)) === Diagonal(1:3)
+    @test_throws ArgumentError transmute((1:3)',(1,1)) # 1 is trivial dim. Confusing message though!
+    @test transmute((1:3)',(1,2)) == (1:3)' # but not ===, unwrapped before noticing.
+
     @test transmute(Diagonal(1:10), (3,1)) === TransmutedDimsArray(1:10, (0,1))
     @test transmute(Diagonal(rand(10)), (3,1)) isa Matrix
     @test transmute(Diagonal(rand(10)), Val((3,1))) isa Matrix
@@ -138,23 +142,32 @@ end
     @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
 
 end
-@testset "allocations" begin
+@testset "diagonal" begin
 
-    y = ones(1,2,3);
+    for d in [
+        transmute(ones(Int,3), (1,1)),
+        transmute(ones(Int,3), Val((1,1))),
+        TransmutedDimsArray(ones(Int,3), (1,1)),
+        ]
+        @test d == [1 0 0; 0 1 0; 0 0 1]
+        @test d[2] == 0
+        @test (d[3,3] = 33) == 33
+        @test d[3,3] == 33
+        @test (d[2,1] = 0) == 0
+        @test_throws ArgumentError d[1,2] = 99
+        @test IndexStyle(d) == IndexCartesian()
 
-    if VERSION >= v"1.6-"
-        # wrap
-        @allocated transmute(y, (3,2,0,1))
-        @test 97 > @allocated transmute(y, (3,2,0,1))
-        @allocated transmute(y, Val((3,2,0,1)))
-        @test 17 > @allocated transmute(y, Val((3,2,0,1)))
-
-        # reshape
-        @allocated transmute(y, (1,2,0,3))
-        @test 129 > @allocated transmute(y, (1,2,0,3))
-        @allocated transmute(y, Val((1,2,0,3)))
-        @test 129 > @allocated transmute(y, Val((1,2,0,3)))
+        @test sum(d .+ 10) == 90 + 2 + 33
     end
+
+    r = rand(3)
+    q = TransmutedDimsArray(r, (1,0,1,1))
+    @test q[2,1,2,2] == r[2]
+    @test q[2,1,2,3] == 0
+    @test_throws ArgumentError q[1,1,1,3] = 99
+
+    # eager
+    @test q == transmutedims(r, (1,0,1,1))
 
 end
 @testset "from Base" begin
@@ -220,6 +233,24 @@ end
     # v = [1,2,3]
     # @test transmutedims(v) == [1 2 3]
 end
+
+using BenchmarkTools
+@testset "allocations" begin
+
+    y = ones(1,2,3);
+
+    # wrap
+    @test 97 > @ballocated transmute($y, (3,2,0,1))
+    @test 0 == @ballocated transmute($y, Val((3,2,0,1)))
+    # @code_warntype (y -> transmute(y, (3,2,0,1)))(y)
+
+    # reshape
+    @test 129 > @ballocated transmute($y, (1,2,0,3))
+    @test 129 > @ballocated transmute($y, Val((1,2,0,3)))
+    # @code_warntype (y -> transmute(y, (1,2,0,3)))(y)
+
+end
+
 using OffsetArrays, Random
 @testset "offset" begin
 
@@ -232,41 +263,3 @@ using OffsetArrays, Random
     @test transmute(o34, (2,0,1))[21, 1, 13] == o34[13, 21]
 
 end
-
-# @testset "transpose" begin
-
-#     @test size(_transpose(ones(1,2,3,4), (2,4))) == (1,4,3,2)
-#     @test size(_transpose(ones(1,2,3,4), Val((2,4)))) == (1,4,3,2)
-
-#     @test size(_transpose(ones(1,2,3), (2,5))) == (1,1,3,1,2)
-#     @test size(_transpose(ones(1,2,3), Val((2,5)))) == (1,1,3,1,2)
-
-# end
-# @testset "diagonal" begin
-
-#     for d in [
-#         TransmutedDimsArray(ones(Int,3), (1,1)),
-#         transmute(ones(Int,3), (1,1)),
-#         Transmute{(1,1)}(ones(Int,3)),
-#         ]
-#         @test d == [1 0 0; 0 1 0; 0 0 1]
-#         @test d[2] == 0
-#         @test (d[3,3] = 33) == 33
-#         @test d[3,3] == 33
-#         @test (d[2,1] = 0) == 0
-#         @test_throws ArgumentError d[1,2] = 99
-#         @test IndexStyle(d) == IndexCartesian()
-
-#         @test sum(d .+ 10) == 90 + 1 + 33
-#     end
-
-#     r = rand(3)
-#     q = TransmutedDimsArray(r, (1,0,1,1))
-#     @test q[2,1,2,2] == r[2]
-#     @test q[2,1,2,3] == 0
-#     @test_throws ArgumentError q[1,1,1,3] = 99
-
-#     # eager
-#     @test q == transmutedims(r, (1,0,1,1))
-
-# end

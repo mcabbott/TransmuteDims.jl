@@ -57,12 +57,8 @@ julia> TransmutedDimsArray(reshape(1:6,3,2), (1,1,2))  # generalised Diagonal
 ```
 """
 function TransmutedDimsArray(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
-    P = map(n -> n in 1:M ? n : 0, Tuple(perm))
-    for d in 1:M
-        count(isequal(d), P) >= 1 || throw(ArgumentError(
-            "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
-    end
-    Q = invperm_zero(P, M)
+    P = sanitise_zero(perm, Val(M))
+    Q = invperm_zero(P, Val(M))
     TransmutedDimsArray{T,length(perm),P,Q,AT}(data)
 end
 
@@ -97,11 +93,12 @@ Base.dataids(A::TransmutedDimsArray) = Base.dataids(A.parent)
 
 Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
 
-# @generated function Base.IndexStyle(::Type{TT}) where {TT<:TransmutedDimsArray{T,N,P,Q,AT}} where {T,N,P,Q,AT}
-#     if IndexStyle(AT) == IndexLinear() && increasing_or_zero(P)
-#         :(IndexLinear())
+# # The cases in which linear indexing would be desirable are those in which transmute() just reshapes.
+# function Base.IndexStyle(::Type{TT}) where {TT<:TransmutedDimsArray{T,N,P,Q,AT}} where {T,N,P,Q,AT}
+#     if IndexStyle(AT) === IndexLinear() && increasing_or_zero(Val(P))
+#         IndexLinear()
 #     else
-#         :(IndexCartesian())
+#         IndexCartesian()
 #     end
 # end
 
@@ -121,22 +118,14 @@ end
 #     val = @inbounds getindex(A.parent, i)
 # end
 
-# @inline function Base.getindex(A::TransmutedDimsArray{T,N,P,Q,S,true}, i::Int) where {T,N,P,Q,S}
-#     @boundscheck checkbounds(A, i)
-#     getindex(A.parent, i)
-# end # plus one more method to resolve an ambiguity:
-# @inline function Base.getindex(A::TransmutedDimsArray{T,1,P,Q,S,true}, i::Int) where {T,P,Q,S}
-#     @boundscheck checkbounds(A, i)
-#     getindex(A.parent, i)
-# end
-
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
     if !unique_or_zero(Val(perm)) && is_off_diag(Val(perm), I)
         iszero(val) || throw(ArgumentError(
             "cannot set off-diagonal entry $I to a nonzero value ($val)"))
+    else
+        @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     end
-    @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
     val
 end
 
@@ -147,25 +136,30 @@ end
 #     val
 # end
 
-# @inline function Base.setindex!(A::TransmutedDimsArray{T,N,P,Q,S,true}, val, i::Int) where {T,N,P,Q,S}
-#     @boundscheck checkbounds(A, i)
-#     @inbounds setindex!(A.parent, val, i)
-#     val
-# end
-
-# Not entirely sure this is a good idea, but passing KW along...
+# # Not entirely sure this is a good idea, but passing KW along...
 # Base.@propagate_inbounds Base.getindex(A::TransmutedDimsArray; kw...) =
 #     getindex(A.parent; kw...)
 # Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
 #     setindex!(A.parent, val; kw...)
 
+#========== Utils ==========#
 
-@inline genperm_zero(I::Tuple, perm::Dims{N}, gap=1) where {N} =
+@inline function genperm_zero(I::Tuple, perm::Dims{N}, gap=1) where {N}
     ntuple(d -> perm[d]==0 ? gap : I[perm[d]], Val(N))
+end
 
-@inline invperm_zero(P::Tuple, M::Int) = ntuple(d -> findfirst(isequal(d),P), M)
+@inline function invperm_zero(P::NTuple{N,Int}, ::Val{M}) where {N,M}
+    Q = ntuple(M) do d
+        w = ntuple(n -> P[n]==d ? n : 0, N)
+        +(w...) >= 1 || throw(ArgumentError(
+            "every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
+        max(w...)
+    end
+end
 
-@inline sanitise_zero(P::Tuple, A) = map(i -> i in Base.OneTo(ndims(A)) ? i : 0, P)
+@inline function sanitise_zero(perm, ::Val{M}) where {M}
+    map(n -> n isa Integer && 0<n<=M ? Int(n) : 0, Tuple(perm))
+end
 
 @inline function is_off_diag(P::Tuple, I::Tuple)
     for a in 1:length(P)
@@ -174,15 +168,32 @@ end
             I[a] == I[b] || return true
         end
     end
-    false
+    return false
 end
-@inline @generated function is_off_diag(::Val{P}, I::Tuple) where {P}
+@inline @generated function is_off_diag(::Val{P}, I::Tuple) where {P}  # for getindex
     out = []
     for a in 1:length(P), b in 1:length(P)
         P[a] == P[b] && push!(out,  :( I[$a] != I[$b] ))
     end
     Expr(:call, :|, out...)
 end
+
+@inline function increasing_or_zero(tup::Tuple, prev=0)  # strictly increasing!
+    d = first(tup)
+    (d != 0) & (d <= prev) && return false
+    return increasing_or_zero(Base.tail(tup), max(d, prev))
+end
+@inline increasing_or_zero(::Tuple{}, prev=0) = true
+
+@inline function unique_or_zero(perm)  # only generated version is called
+    for i in 1:length(perm)
+        d = perm[i]
+        d == 0 && continue
+        d in perm[i+1:end] && return false
+    end
+    return true
+end
+@generated unique_or_zero(::Val{perm}) where {perm} = unique_or_zero(perm)
 
 #========== Printing ==========#
 
@@ -226,6 +237,9 @@ LazyPermute{P,AT} = Union{
 
 getperm(A::PermutedDimsArray{T,N,P}) where {T,N,P} = P
 getinvperm(A::PermutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
+
+# can_reshape(::Type) = false
+# can_reshape(::Type{<:DenseArray}) = true
 
 #========== New constructor transmute() ==========#
 
@@ -279,12 +293,12 @@ julia> ans == transmute(B, (2,2,1,3))
 true
 ```
 """
-transmute(data::AbstractArray, perm) = _transmute(data, Tuple(perm))
+transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
 
 # First dispatch is on perm, second is _transmute(::SomeArray, ::Any)
 
-function _transmute(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
-    P,Q = _calc_perms(data, Tuple(perm))
+@inline function _transmute(data::AT, P) where {AT <: AbstractArray{T,M}} where {T,M}
+    Q = invperm_zero(P, Val(ndims(AT)))
     if P == (2,1) && T<:Number
         transpose(data)
     elseif P == (1,1)
@@ -298,12 +312,11 @@ end
 
 # Reshaping instead of wrapping:
 
-function _transmute(data::AT, perm) where {AT <: DenseArray{T,M}} where {T,M}
-    P = sanitise_zero(perm, data)
+@inline function _transmute(data::AT, P) where {AT <: DenseArray{T,M}} where {T,M}
     if increasing_or_zero(P)
         for d in 1:M
             count(isequal(d), P) >= 1 || throw(ArgumentError(
-                "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
+                "every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
         end
         S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
         reshape(data, S)
@@ -314,22 +327,22 @@ end
 
 # Unwapping of other transpose etc:
 
-function _transmute(data::LazyTranspose{<:AbstractVector}, perm)
+@inline function _transmute(data::LazyTranspose{<:AbstractVector}, perm)
     new_perm = map(d -> d==1 ? 0 : d==2 ? 1 : d, perm)
     _transmute(parent(data), new_perm)
 end
 
-function _transmute(data::LazyTranspose{<:AbstractMatrix}, perm)
+@inline function _transmute(data::LazyTranspose{<:AbstractMatrix}, perm)
     new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
     _transmute(parent(data), new_perm)
 end
 
-function _transmute(data::LazyPermute{inner}, perm) where {inner}
-    new_perm = map(d -> d==0 ? 0 : inner[d], sanitise_zero(perm, data))
+@inline function _transmute(data::LazyPermute{inner}, perm) where {inner}
+    new_perm = map(d -> d==0 ? 0 : inner[d], perm)
     _transmute(parent(data), new_perm)
 end
 
-function _transmute(data::Diagonal, perm)
+@inline function _transmute(data::Diagonal, perm)
     new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
     _transmute(parent(data), new_perm)
 end
@@ -337,14 +350,14 @@ end
 #========== Version with Val(perm) ==========#
 
 @generated function transmute(data::AbstractArray, ::Val{perm}) where {perm}
-    _trex(:data, data, perm)
+    _trex(:data, data, sanitise_zero(perm, Val(ndims(data))))
 end
 
 # Identical list of cases:
 
-function _trex(ex, AT, perm) #  ::Type{AT}, perm) where {AT}
+function _trex(ex, AT, P)
     T = eltype(AT)
-    P,Q = _calc_perms(AT, perm)
+    Q = invperm_zero(P, Val(ndims(AT)))
 
     if P == (2,1) && T<:Number
         :(transpose($ex))
@@ -357,12 +370,11 @@ function _trex(ex, AT, perm) #  ::Type{AT}, perm) where {AT}
     end
 end
 
-function _trex(ex, ::Type{AT}, perm) where {AT <: DenseArray{T,M}} where {T,M}
-    P = sanitise_zero(perm, AT)
+function _trex(ex, ::Type{AT}, P) where {AT <: DenseArray{T,M}} where {T,M}
     if increasing_or_zero(P)
         for d in 1:M
             count(isequal(d), P) >= 1 || throw(ArgumentError(
-                "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
+                "every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
         end
         S = map(d -> d==0 ? :(Base.OneTo(1)) : :(axes($ex,$d)), P)
         :(reshape($ex, ($(S...),)))
@@ -382,65 +394,13 @@ function _trex(ex, ::Type{AT}, perm) where {AT<:LazyTranspose{PT}} where {PT<:Ab
 end
 
 function _trex(ex, ::Type{AT}, perm) where {AT<:LazyPermute{inner,PT}} where {inner,PT}
-    new_perm = map(d -> d==0 ? 0 : inner[d], sanitise_zero(perm, AT))
+    new_perm = map(d -> d==0 ? 0 : inner[d], perm)
     _trex(:(parent($ex)), PT, new_perm)
 end
 
 function _trex(ex, ::Type{AT}, perm) where {AT<:Diagonal{T,PT}} where {T,PT}
     new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
     _trex(:(parent($ex)), PT, new_perm)
-end
-
-#========== Utils ==========#
-
-@inline function increasing_or_zero(perm)
-    prev = 0
-    for d in perm
-        d == 0 && continue
-        d <= prev && return false
-        prev = max(prev, d)
-    end
-    return true
-end
-@generated increasing_or_zero(::Val{perm}) where {perm} = increasing_or_zero(perm)
-
-@inline function unique_or_zero(perm)
-    for i in 1:length(perm)
-        d = perm[i]
-        d == 0 && continue
-        d in perm[i+1:end] && return false
-    end
-    return true
-end
-@generated unique_or_zero(::Val{perm}) where {perm} = unique_or_zero(perm)
-# unique_or_zero(perm::Tuple) = _unique_or_zero(perm...)
-# _unique_or_zero(q) = true
-# function _unique_or_zero(p, qs...) # This works but isn't great
-#     rest = _unique_or_zero(qs...)
-#     iszero(p) && return rest
-#     p in qs && return false
-#     return rest
-# end
-
-_calc_perms(data::AbstractArray, tup::Tuple) = _calc_perms(typeof(data), tup)
-
-function _calc_perms(::Type{AT}, tup::Tuple) where {AT<:AbstractArray{T,M}} where {T,M}
-    N = length(tup)
-
-    # Sanitise input "perm"
-    P = map(n -> n isa Int && 0<n<=M ? n : 0, tup)
-
-    # Calculate sort-of inverse
-    Q = ntuple(M) do d
-        c = ntuple(n -> P[n]==d ? 1 : 0, N)
-        sum(c)>=1 || throw(ArgumentError(
-            "Every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
-
-        w = ntuple(n -> P[n]==d ? n : 0, N)
-        maximum(w)
-    end
-
-    return P,Q
 end
 
 #========== The rest ==========#
