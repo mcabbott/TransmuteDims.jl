@@ -34,7 +34,7 @@ end
 #========== reshape ==========#
 
 function Base.vec(A::TransmutedDimsArray{T,N,P}) where {T,N,P}
-    if increasing_or_zero(Val(P))
+    if increasing_or_zero(P)  # the case which transmute() will avoid creating
         vec(A.parent)
     else
         reshape(A, length(A))
@@ -49,8 +49,6 @@ Base.adjoint(A::TransmutedDimsArray{<:Real, 1}) = transmute(A, Val((2,1)))
 Base.adjoint(A::TransmutedDimsArray{<:Real, 2}) = transmute(A, Val((2,1)))
 
 Base.PermutedDimsArray(A::TransmutedDimsArray, perm) = transmute(A, perm)
-
-
 
 #========== Reductions ==========#
 

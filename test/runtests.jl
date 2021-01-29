@@ -141,6 +141,10 @@ end
 
     @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
 
+    # reshape
+    @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector
+    @test vec(TransmutedDimsArray(m, (2,0,1))) isa Base.ReshapedArray
+
 end
 @testset "diagonal" begin
 
