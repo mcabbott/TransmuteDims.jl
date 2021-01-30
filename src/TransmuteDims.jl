@@ -306,11 +306,11 @@ true
 """
 function transmute end
 
-@static if VERSION > v"1.7.0-DEV.400" # not exactly right!
-    @inline Base.@aggressive_constprop transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
-else
+# @static if VERSION > v"1.7.0-DEV.400" # not exactly right!
+#     @inline Base.@aggressive_constprop transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
+# else
     @inline transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
-end
+# end
 
 # First dispatch is on perm, second is _transmute(::SomeArray, ::Any),
 # un-wrapping all before running this:
