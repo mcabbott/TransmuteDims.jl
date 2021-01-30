@@ -9,17 +9,19 @@ struct TransmutedDimsArray{T,N,perm,iperm,AA<:AbstractArray} <: AbstractArray{T,
 end
 
 """
-    TransmutedDimsArray(A, perm′) -> B
+    TransmutedDimsArray(A, perm⁺)
 
-This is just like `PermutedDimsArray`, except that `perm′` need not be a permutation:
+This is just like `PermutedDimsArray`, except that `perm⁺` need not be a permutation:
 
 * Where it contains `0`, this inserts a trivial dimension into the output, size 1.
   Any number outside `1:ndims(A)` is treated like `0`, fitting with `size(A,99) == 1`.
 
-* When number appears twice in `perm′`, then this works like `Diagonal` in those dimensions.
+* Any number omitted from `perm⁺` is a dimension to be dropped, which must be of size 1.
+
+* When a number appears twice in `perm⁺`, the result works like `Diagonal` in those dimensions.
 
 By calling the type directly you get the simplest constructor.
-Calling instead [`transmute`](@ref) gives one which un-wraps nested objects,
+Calling instead [`transmute(A, perm⁺)`](@ref) gives one which un-wraps nested objects,
 picks simpler alternatives, etc.
 
 # Examples
@@ -58,7 +60,7 @@ julia> TransmutedDimsArray(reshape(1:6,3,2), (1,1,2))  # generalised Diagonal
 """
 function TransmutedDimsArray(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
     P = sanitise_zero(perm, Val(M))
-    Q = invperm_zero(P, Val(M))
+    Q = invperm_zero(P, size(data))
     TransmutedDimsArray{T,length(perm),P,Q,AT}(data)
 end
 
@@ -144,21 +146,21 @@ end
 
 #========== Utils ==========#
 
+@inline function sanitise_zero(perm, ::Val{M}) where {M}
+    map(n -> n isa Integer && 0<n<=M ? Int(n) : 0, Tuple(perm))
+end
+
 @inline function genperm_zero(I::Tuple, perm::Dims{N}, gap=1) where {N}
     ntuple(d -> perm[d]==0 ? gap : I[perm[d]], Val(N))
 end
 
-@inline function invperm_zero(P::NTuple{N,Int}, ::Val{M}) where {N,M}
+@inline function invperm_zero(P::NTuple{N,Int}, S::NTuple{M,Integer}) where {N,M}
     Q = ntuple(M) do d
         w = ntuple(n -> P[n]==d ? n : 0, N)
-        +(w...) >= 1 || throw(ArgumentError(
-            "every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
+        +(w...) >= 1 || S[d]==1 || throw(ArgumentError(
+            "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = $(S[d]) != 1"))
         max(w...)
     end
-end
-
-@inline function sanitise_zero(perm, ::Val{M}) where {M}
-    map(n -> n isa Integer && 0<n<=M ? Int(n) : 0, Tuple(perm))
 end
 
 @inline function is_off_diag(P::Tuple, I::Tuple)
@@ -238,21 +240,24 @@ LazyPermute{P,AT} = Union{
 getperm(A::PermutedDimsArray{T,N,P}) where {T,N,P} = P
 getinvperm(A::PermutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
 
-# can_reshape(::Type) = false
-# can_reshape(::Type{<:DenseArray}) = true
+may_reshape(::Type) = false
+may_reshape(::Type{<:DenseArray}) = true
 
 #========== New constructor transmute() ==========#
 
 """
-    transmute(A, perm′)
-    transmute(A, Val(perm′))
+    transmute(A, perm⁺)
+    transmute(A, Val(perm⁺))
 
-Similar to `TransmutedDimsArray(A, perm′)`, but:
+Gives a result `== TransmutedDimsArray(A, perm⁺)`, but:
 
 * When `A` is a `PermutedDimsArray`, `Transpose{<:Number}`, `Adjoint{<:Real}`, or `Diagonal`,
-  the constructor will adjust `perm′` to work directly on `parent(A)`.
+  it will un-wrap this, and adjust `perm⁺` to work directly on `parent(A)`.
 
-* When the permutation simply inserts a trivial dimension, it may `reshape` instead of wrapping.
+* When the permutation simply inserts or removes a trivial dimension, it may `reshape`
+  instead of wrapping. This is controlled by `may_reshape(::Type)`.
+
+* When possible, it prefers to create a `Transpose` or `Diagonal`, instead of `TransmutedDimsArray`.
 
 * If the permutation is wrapped in `Val`, then computing its inverse (and performing sanity checks)
   can be done at compile-time.
@@ -291,41 +296,40 @@ julia> transmute(A, (2,2,0,1))
 
 julia> ans == transmute(B, (2,2,1,3))
 true
+
+julia> TransmuteDims.may_reshape(typeof(A))  # avoids reshaping wrappers
+false
+
+julia> TransmuteDims.may_reshape(typeof(B))
+true
 ```
 """
-transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
+function transmute end
 
-# First dispatch is on perm, second is _transmute(::SomeArray, ::Any)
+@static if VERSION > v"1.7.0-DEV.400" # not exactly right!
+    @inline Base.@aggressive_constprop transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
+else
+    @inline transmute(data::AbstractArray, perm) = _transmute(data, sanitise_zero(perm, Val(ndims(data))))
+end
+
+# First dispatch is on perm, second is _transmute(::SomeArray, ::Any),
+# un-wrapping all before running this:
 
 @inline function _transmute(data::AT, P) where {AT <: AbstractArray{T,M}} where {T,M}
-    Q = invperm_zero(P, Val(ndims(AT)))
-    if P == (2,1) && T<:Number
+    Q = invperm_zero(P, size(data))
+    if may_reshape(AT) && increasing_or_zero(P)
+        S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
+        reshape(data, S)
+    elseif P == (2,1) && T<:Number
         transpose(data)
     elseif P == (1,1)
         Diagonal(data)
-    elseif P == 1:length(P)
+    elseif P == 1:length(P)  # TODO: is this right? Should it be earlier?
         data
     else
         TransmutedDimsArray{T,length(P),P,Q,AT}(data)
     end
 end
-
-# Reshaping instead of wrapping:
-
-@inline function _transmute(data::AT, P) where {AT <: DenseArray{T,M}} where {T,M}
-    if increasing_or_zero(P)
-        for d in 1:M
-            count(isequal(d), P) >= 1 || throw(ArgumentError(
-                "every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
-        end
-        S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
-        reshape(data, S)
-    else
-        invoke(_transmute, Tuple{AbstractArray, Any}, data, P)
-    end
-end
-
-# Unwapping of other transpose etc:
 
 @inline function _transmute(data::LazyTranspose{<:AbstractVector}, perm)
     new_perm = map(d -> d==1 ? 0 : d==2 ? 1 : d, perm)
@@ -356,31 +360,52 @@ end
 # Identical list of cases:
 
 function _trex(ex, AT, P)
+    @gensym sym
     T = eltype(AT)
-    Q = invperm_zero(P, Val(ndims(AT)))
+    Q, checks = invperm_zero(P, ndims(AT), sym)
 
-    if P == (2,1) && T<:Number
-        :(transpose($ex))
+    noreshape = if P == (2,1) && T<:Number
+        :(transpose($sym))
     elseif P == (1,1)
-        :(Diagonal($ex))
+        :(Diagonal($sym))
     elseif P == 1:length(P)
-        ex
+        sym
     else
-        :(TransmutedDimsArray{$T,$(length(P)),$P,$Q,$AT}($ex))
+        :(TransmutedDimsArray{$T,$(length(P)),$P,$Q,$AT}($sym))
+    end
+
+    if increasing_or_zero(P)
+        S = map(d -> d==0 ? :(Base.OneTo(1)) : :(axes($sym,$d)), P)
+        withreshape = :(reshape($sym, ($(S...),)))
+        quote
+            $sym = $ex
+            $(checks...)
+            if may_reshape($AT) # check this trait at run-time
+                $withreshape
+            else
+                $noreshape
+            end
+        end
+    else
+        quote
+            $sym = $ex
+            $(checks...)
+            $noreshape
+        end
     end
 end
 
-function _trex(ex, ::Type{AT}, P) where {AT <: DenseArray{T,M}} where {T,M}
-    if increasing_or_zero(P)
-        for d in 1:M
-            count(isequal(d), P) >= 1 || throw(ArgumentError(
-                "every number in 1:$M must appear at least once in trasmutation $P, but $d is missing"))
-        end
-        S = map(d -> d==0 ? :(Base.OneTo(1)) : :(axes($ex,$d)), P)
-        :(reshape($ex, ($(S...),)))
-    else
-        invoke(_trex, Tuple{Any, Any, Any}, ex, AT, P)
+function invperm_zero(P::NTuple{N,Int}, M::Int, sym::Symbol) where {N}
+    checks = []
+    Q = ntuple(M) do d
+        w = ntuple(n -> P[n]==d ? n : 0, N)
+        str = "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = != 1"
+        +(w...) >= 1 || push!(checks, quote
+            size($sym,$d)==1 || throw(ArgumentError($str))
+        end)
+        max(w...)
     end
+    Q, checks
 end
 
 function _trex(ex, ::Type{AT}, perm) where {AT<:LazyTranspose{PT}} where {PT<:AbstractVector}
