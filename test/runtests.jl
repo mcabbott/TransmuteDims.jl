@@ -54,25 +54,25 @@ end
     @test m[3,2] == 333
 
     # linear indexing
-    @test_skip Base.IndexStyle(g) == IndexLinear()
+    @test_skip Base.IndexStyle(g) == IndexLinear() # perhaps we don't want this
     @test Base.IndexStyle(t) == IndexCartesian()
     g[4] = 444
     @test m[4] == 444
     t[5] = 555
     @test transpose(m)[5] == 555
 
-    # reductions
-    @test sum(transmute(m,(2,1,3))) == sum(m)
-    @test sum(transmute(m,(1,1,2))) == sum(m)
-
     # linear indexing, for more constructors
     y = zeros(1,2,3);
-    @test_skip IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear()
+    @test IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear() # it's an Array
     @test_skip IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
     @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
     @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
 
     @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
+
+    # reductions
+    @test sum(transmute(m,(2,1,3))) == sum(m)
+    @test sum(transmute(m,(1,1,2))) == sum(m)
 
     # reshape
     @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector
