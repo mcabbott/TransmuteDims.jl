@@ -1,7 +1,7 @@
 using TransmuteDims
 using Test, LinearAlgebra, Random
 
-transmutedims(A,p) = collect(transmute(A,p)) # for now!
+transmutedims(A,p) = collect(transmute(A,p)) # just to run old tests
 transmutedims!(Z,A,p) = (Z .= transmute(A,p))
 
 @testset "eager" begin
@@ -61,24 +61,22 @@ end
     t[5] = 555
     @test transpose(m)[5] == 555
 
-    # dropdims
-    @test dropdims(g, dims=2) == m
-    @test dropdims(g, dims=2) isa Matrix # now unwraps!
-    @test dropdims(t, dims=2) == m'
-    @test dropdims(t, dims=2) isa Transpose
-
-    h = reshape(1:9, 3,1,3)
-    f = transmute(h, (0,3,2,1))
-
-    @test size(f) == (1,3,1,3)
-    @test dropdims(f, dims=1) == permutedims(h, (3,2,1))
-    @test dropdims(f, dims=3).parent == reshape(h,3,3)
-    @test dropdims(f, dims=(1,3)) == reshape(h,3,3)'
-    @test dropdims(f, dims=(3,1)) == reshape(h,3,3)'
-
     # reductions
     @test sum(transmute(m,(2,1,3))) == sum(m)
     @test sum(transmute(m,(1,1,2))) == sum(m)
+
+    # linear indexing, for more constructors
+    y = zeros(1,2,3);
+    @test_skip IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear()
+    @test_skip IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
+    @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
+    @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
+
+    @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
+
+    # reshape
+    @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector
+    @test vec(TransmutedDimsArray(m, (2,0,1))) isa Base.ReshapedArray
 
     # errors
     @test_throws ArgumentError transmute(m, (2,))
@@ -87,6 +85,12 @@ end
     @test_throws ArgumentError transmute(m, Val((2,0,3,0,2)))
     @test_throws Exception TransmutedDimsArray(m, (2,))
     @test_throws Exception TransmutedDimsArray(m, (2,0,3,0,2))
+
+end
+@testset "unwrapping" begin
+
+    m = rand(1:99, 3,4)
+    v = m[:,1]
 
     # unwrapping: LinearAlgebra
     @test transmute(m', (2,0,1)) == transmute(m, (1,0,2)) # both are reshapes
@@ -132,18 +136,44 @@ end
     @test transpose(TransmutedDimsArray(m, (2,1))) isa Matrix
     @test adjoint(TransmutedDimsArray(v, (0,1))) isa Matrix
 
-    # linear indexing, for more constructors
-    y = zeros(1,2,3);
-    @test_skip IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear()
-    @test_skip IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
-    @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
-    @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
+end
+@testset "dropdims" begin
 
-    @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
+    m = rand(1:99, 3,4)
+    g = TransmutedDimsArray(m, (1,0,2)) # could be an Array
+    r = collect(g)
+    t = transmute(m, (2,0,1))
 
-    # reshape
-    @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector
-    @test vec(TransmutedDimsArray(m, (2,0,1))) isa Base.ReshapedArray
+    # dropdims
+    @test dropdims(g, dims=2) == m
+    @test dropdims(g, dims=2) isa Matrix # now unwraps!
+    @test dropdims(t, dims=2) == m'
+    @test dropdims(t, dims=2) isa Transpose
+
+    h = reshape(1:9, 3,1,3)
+    f = transmute(h, (0,3,2,1))
+
+    @test size(f) == (1,3,1,3)
+    @test dropdims(f, dims=1) == permutedims(h, (3,2,1))
+    @test dropdims(f, dims=3).parent == reshape(h,3,3)
+    @test dropdims(f, dims=(1,3)) == reshape(h,3,3)'
+    @test dropdims(f, dims=(3,1)) == reshape(h,3,3)'
+
+    # without dropdims
+    @test transmute(g, (1,3)) === m # unwraps
+    @test transmute(r, (1,3)) == m # reshapes
+    @test transmute(r, (1,3)) isa Matrix
+    @test transmute(t, (3,1)) === m # unwraps
+    @test transmute(t, (1,3)) === transpose(m)
+
+    @test transmute(g, Val((1,3))) === m
+    @test transmute(r, Val((1,3))) == m
+    @test transmute(r, Val((1,3))) isa Matrix
+    @test transmute(t, Val((3,1))) === m
+    @test transmute(t, Val((1,3))) === transpose(m)
+
+    @test_throws ArgumentError transmute(g, (1,2))
+    @test_throws ArgumentError transmute(g, Val((1,2)))
 
 end
 @testset "diagonal" begin
@@ -244,7 +274,7 @@ using BenchmarkTools
     y = ones(1,2,3);
 
     # wrap
-    @test 97 > @ballocated transmute($y, (3,2,0,1))
+    @test 97 > @ballocated transmute($y, (3,2,0,1)) # zero on 1.7, maybe 1.5?
     @test 17 > @ballocated transmute($y, Val((3,2,0,1)))  # nonzero only on 1.3
     # @code_warntype (y -> transmute(y, (3,2,0,1)))(y)
 
