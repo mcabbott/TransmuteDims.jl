@@ -61,3 +61,5 @@ using BenchmarkTools
 ```
 
 There was going to be an eager variant `transmutedims(A, (3,2,0,1))` but for now that's absent.
+
+Co-operation with GPUArrays is also disabled for now (v0.1).
