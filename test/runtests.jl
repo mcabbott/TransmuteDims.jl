@@ -73,6 +73,9 @@ end
     # reductions
     @test sum(transmute(m,(2,1,3))) == sum(m)
     @test sum(transmute(m,(1,1,2))) == sum(m)
+    @test sum(TransmutedDimsArray(m,(1,2)); dims=1) == sum(m, dims=1)
+    @test sum(TransmutedDimsArray(m,(2,1)); dims=1) == sum(m', dims=1)
+    @test sum(TransmutedDimsArray(m,(2,1)), dims=2) == sum(m', dims=2)
 
     # reshape
     @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector

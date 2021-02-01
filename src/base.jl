@@ -52,4 +52,3 @@ Base.PermutedDimsArray(A::TransmutedDimsArray, perm) = transmute(A, perm)
 
 #========== Reductions ==========#
 
-Base.mapreduce(f, op, a::TransmutedDimsArray; kw...) = mapreduce(f, op, a.parent; kw...)
