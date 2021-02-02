@@ -343,4 +343,9 @@ using .JLArrays # a fake GPU array, for testing
     @test j3 isa JLArray
     @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
 
+    @test sprint(show, jm) isa String
+    io = IOBuffer()
+    Base.print_array(io, jm)
+    @test contains(String(take!(io)), string(m[1]))
+
 end
