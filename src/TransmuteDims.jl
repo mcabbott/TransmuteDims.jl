@@ -324,16 +324,17 @@ function transmute end
 # un-wrapping all before running this:
 
 @inline function _transmute(data::AT, P) where {AT <: AbstractArray{T,M}} where {T,M}
+    N = length(P)
     Q = invperm_zero(P, size(data))
-    if may_reshape(AT) && increasing_or_zero(P)
+    if M == N && P == ntuple(identity, N)  # trivial case
+        data
+    elseif may_reshape(AT) && increasing_or_zero(P)
         S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
         reshape(data, S)
-    elseif P == (2,1) && T<:Number
+    elseif M == 2 && P == (2,1) && T<:Number
         transpose(data)
-    elseif P == (1,1)
+    elseif M == 1 && P == (1,1)
         Diagonal(data)
-    elseif P == 1:length(P)  # TODO: is this right? Should it be earlier?
-        data
     else
         TransmutedDimsArray{T,length(P),P,Q,AT}(data)
     end
@@ -368,16 +369,19 @@ end
 # Identical list of cases:
 
 function _trex(ex, AT, P)
+    M = ndims(AT)
+    N = length(P)
+    if M == N && P == 1:N  # trivial case
+        return ex
+    end
     @gensym sym
     T = eltype(AT)
-    Q, checks = invperm_zero(P, ndims(AT), sym)
+    Q, checks = invperm_zero(P, M, sym)
 
-    noreshape = if P == (2,1) && T<:Number
+    noreshape = if M == 2 && P == (2,1) && T<:Number
         :(transpose($sym))
-    elseif P == (1,1)
+    elseif M == 1 && P == (1,1)
         :(Diagonal($sym))
-    elseif P == 1:length(P)
-        sym
     else
         :(TransmutedDimsArray{$T,$(length(P)),$P,$Q,$AT}($sym))
     end
@@ -385,7 +389,7 @@ function _trex(ex, AT, P)
     if increasing_or_zero(P)
         S = map(d -> d==0 ? :(Base.OneTo(1)) : :(axes($sym,$d)), P)
         withreshape = :(reshape($sym, ($(S...),)))
-        quote
+        return quote
             $sym = $ex
             $(checks...)
             if may_reshape($AT) # check this trait at run-time
@@ -395,7 +399,7 @@ function _trex(ex, AT, P)
             end
         end
     else
-        quote
+        return quote
             $sym = $ex
             $(checks...)
             $noreshape
@@ -439,8 +443,10 @@ end
 
 #========== The rest ==========#
 
+include("base.jl")
+
 include("gpu.jl") # this takes loading from 0.4s to 1.5s :(
 
-include("base.jl")
+include("chainrules.jl")
 
 end
