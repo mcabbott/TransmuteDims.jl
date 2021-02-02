@@ -315,3 +315,25 @@ using OffsetArrays, Random
     @test transmute(o34, (2,0,1))[21, 1, 13] == o34[13, 21]
 
 end
+
+using GPUArrays
+jl_file = joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl")
+include(jl_file)
+using .JLArrays # a fake GPU array, for testing
+
+@testset "GPUArrays" begin
+
+    m = rand(4,4)
+    jm = JLArray(m)
+
+    tjm = TransmutedDimsArray(jm, (2,1))
+    j2 = jm .* log.(tjm) ./ 2
+    @test j2 isa JLArray
+    @test collect(j2) ≈ m .* log.(m') ./ 2
+
+    jmd = transmute(jm, (1,1,2))
+    j3 = jmd .+ 2 .* jmd .+ 1
+    @test j3 isa JLArray
+    @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
+
+end

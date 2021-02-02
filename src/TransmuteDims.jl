@@ -441,7 +441,7 @@ end
 
 #========== The rest ==========#
 
-# include("gpu.jl") # this takes loading from 0.4s to 1.5s. And is probably outdated.
+include("gpu.jl") # this takes loading from 0.4s to 1.5s :(
 
 include("base.jl")
 
