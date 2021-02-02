@@ -319,7 +319,11 @@ end
 using GPUArrays
 GPUArrays.allowscalar(false)
 
-jl_file = joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl")
+jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
+if !isfile(jl_file)
+    @error "Did not find JLArrays, skipping tests of GPUArrays"
+    exit()
+end
 include(jl_file)
 using .JLArrays # a fake GPU array, for testing
 
