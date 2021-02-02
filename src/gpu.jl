@@ -14,35 +14,46 @@ BroadcastStyle(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
 GPUArrays.backend(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
     GPUArrays.backend(AT)
 
-@inline function Base.copyto!(dest::TransmuteGPU, bc::Broadcasted{Nothing})
+@inline function Base.copyto!(dest::TransmuteGPU{AT}, bc::Broadcasted{Nothing}) where {AT<:AbstractGPUArray}
     axes(dest) == axes(bc) || Broadcast.throwdm(axes(dest), axes(bc))
+    isempty(dest) && return dest
     bc′ = Broadcast.preprocess(dest, bc)
-    gpu_call(dest, (dest, bc′)) do state, dest, bc′
-        let I = CartesianIndex(@cartesianidx(dest))
+
+    function broadcast_kernel(ctx, dest, bc′, nelem)
+        for i in 1:nelem
+            I = @cartesianidx(dest, i)
             @inbounds dest[I] = bc′[I]
         end
         return
     end
+    heuristic = launch_heuristic(backend(dest), broadcast_kernel, dest, bc′, 1)
+    config = launch_configuration(backend(dest), heuristic, length(dest), typemax(Int))
+    gpu_call(broadcast_kernel, dest, bc′, config.elements_per_thread;
+             threads=config.threads, blocks=config.blocks)
 
     return dest
 end
 
-@inline Base.copyto!(dest::TransmuteGPU, bc::Broadcasted{<:Broadcast.AbstractArrayStyle{0}}) =
+@inline function Base.copyto!(
+        dest::TransmuteGPU{AT},
+        bc::Broadcasted{<:Broadcast.AbstractArrayStyle{0}}
+    )  where {AT<:AbstractGPUArray}
     copyto!(dest, convert(Broadcasted{Nothing}, bc))
+end
 
-# https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/host/abstractarray.jl#L53
+# https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/host/abstractarray.jl#L49
 # display
 Base.print_array(io::IO, X::TransmuteGPU{AT} where {AT <: AbstractGPUArray}) =
-    Base.print_array(io, GPUArrays.cpu(X))
+    Base.print_array(io, GPUArrays.convert_to_cpu(X))
 
 Base._show_nonempty(io::IO, X::TransmuteGPU{AT} where {AT <: AbstractGPUArray}, prefix::String) =
-    Base._show_nonempty(io, GPUArrays.cpu(X), prefix)
+    Base._show_nonempty(io, GPUArrays.convert_to_cpu(X), prefix)
 Base._show_empty(io::IO, X::TransmuteGPU{AT} where {AT <: AbstractGPUArray}) =
-    Base._show_empty(io, GPUArrays.cpu(X))
+    Base._show_empty(io, GPUArrays.convert_to_cpu(X))
 Base.show_vector(io::IO, v::TransmuteGPU{AT} where {AT <: AbstractGPUArray}, args...) =
-    Base.show_vector(io, GPUArrays.cpu(X), args...)
+    Base.show_vector(io, GPUArrays.convert_to_cpu(X), args...)
 
-using Adapt
+using Adapt  # is this still needed?
 # https://github.com/JuliaGPU/Adapt.jl/blob/master/src/base.jl
 
 function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT}) where {T,N,P,Q,AT}
