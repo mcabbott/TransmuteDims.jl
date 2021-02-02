@@ -14,7 +14,8 @@ end
 This is just like `PermutedDimsArray`, except that `perm⁺` need not be a permutation:
 
 * Where it contains `0`, this inserts a trivial dimension into the output, size 1.
-  Any number outside `1:ndims(A)` is treated like `0`, fitting with `size(A,99) == 1`.
+  Anything outside `1:ndims(A)` is treated like `0` -- fitting with `size(A,99) == 1`,
+  but also allowing `nothing`.
 
 * Any number omitted from `perm⁺` is a dimension to be dropped, which must be of size 1.
 
@@ -25,12 +26,16 @@ Calling instead [`transmute(A, perm⁺)`](@ref) gives one which un-wraps nested 
 picks simpler alternatives, etc.
 
 # Examples
-```jldoctest
-julia> TransmutedDimsArray('a':'c', (2,1)) # fails!!
 
-julia> TransmutedDimsArray([3,5,7,11], (2,1))  # like transpose
-1×4 transmute(::Vector{Int64}, (0, 1)) with eltype Int64:
- 3  5  7  11
+```jldoctest
+julia> TransmutedDimsArray('a':'e', (2,1))  # like transpose
+1×5 transmute(::StepRange{Char, Int64}, (0, 1)) with eltype Char:
+ 'a'  'b'  'c'  'd'  'e'
+
+julia> TransmutedDimsArray('a':'e', (nothing, 1, nothing))  # two trivial dimensions
+1×5×1 transmute(::StepRange{Char, Int64}, (0, 1, 0)) with eltype Char:
+[:, :, 1] =
+ 'a'  'b'  'c'  'd'  'e'
 
 julia> A = rand(10, 20, 30);
 
@@ -258,15 +263,16 @@ Gives a result `== TransmutedDimsArray(A, perm⁺)`, but:
 * When `A` is a `PermutedDimsArray`, `Transpose{<:Number}`, `Adjoint{<:Real}`, or `Diagonal`,
   it will un-wrap this, and adjust `perm⁺` to work directly on `parent(A)`.
 
-* When the permutation simply inserts or removes a trivial dimension, it may `reshape`
-  instead of wrapping. This is controlled by `may_reshape(::Type)`.
+* When the permutation simply inserts or removes a trivial dimension, it prefers to `reshape`
+  instead of wrapping. This is controlled by `may_reshape(::Type)`, by default true for `DenseArray`s.
 
-* When possible, it prefers to create a `Transpose` or `Diagonal`, instead of `TransmutedDimsArray`.
+* When possible, it prefers to create a `Transpose` or `Diagonal`, instead of a `TransmutedDimsArray`.
 
 * If the permutation is wrapped in `Val`, then computing its inverse (and performing sanity checks)
-  can be done at compile-time.
+  is always done at compile-time.
 
 # Examples
+
 ```jldoctest; setup=:(using Random; Random.seed!(42);)
 julia> A = transpose(rand(Int8, 4, 2))
 2×4 transpose(::Matrix{Int8}) with eltype Int8:
