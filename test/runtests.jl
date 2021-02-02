@@ -317,6 +317,8 @@ using OffsetArrays, Random
 end
 
 using GPUArrays
+GPUArrays.allowscalar(false)
+
 jl_file = joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl")
 include(jl_file)
 using .JLArrays # a fake GPU array, for testing
@@ -325,6 +327,7 @@ using .JLArrays # a fake GPU array, for testing
 
     m = rand(4,4)
     jm = JLArray(m)
+    @test_throws Exception jm[1]  # scalar getindex is disallowed
 
     tjm = TransmutedDimsArray(jm, (2,1))
     j2 = jm .* log.(tjm) ./ 2
