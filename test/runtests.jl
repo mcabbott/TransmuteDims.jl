@@ -316,47 +316,48 @@ using OffsetArrays, Random
 
 end
 
-using Documenter
-@testset "doctests" begin
-
-    if VERSION >= v"1.6-"
-        doctest(TransmuteDims, manual=false)
-    else
-        @warn "skipping doctests, on Julia $VERSION"
-    end
-
-end
-
-using GPUArrays
-GPUArrays.allowscalar(false)
-
-jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
 if VERSION < v"1.5"
     @warn "skipping tests of GPUArrays"
-    exit()
+else
+    using GPUArrays
+    GPUArrays.allowscalar(false)
+
+    jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
+        exit()
+    include(jl_file)
+    using .JLArrays # a fake GPU array, for testing
+
+    @testset "GPUArrays" begin
+
+        m = rand(4,4)
+        jm = JLArray(m)
+        @test_throws Exception jm[1]  # scalar getindex is disallowed
+
+        tjm = TransmutedDimsArray(jm, (2,1))
+        j2 = jm .* log.(tjm) ./ 2
+        @test j2 isa JLArray
+        @test collect(j2) ≈ m .* log.(m') ./ 2
+
+        jmd = transmute(jm, (1,1,2))
+        j3 = jmd .+ 2 .* jmd .+ 1
+        @test j3 isa JLArray
+        @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
+
+        @test sprint(show, jm) isa String
+        io = IOBuffer()
+        Base.print_array(io, jm)
+        @test contains(String(take!(io)), string(m[1]))
+
+    end
 end
-include(jl_file)
-using .JLArrays # a fake GPU array, for testing
 
-@testset "GPUArrays" begin
+if VERSION < v"1.6-"
+    @warn "skipping doctests, on Julia $VERSION"
+else
+    using Documenter
+    @testset "doctests" begin
 
-    m = rand(4,4)
-    jm = JLArray(m)
-    @test_throws Exception jm[1]  # scalar getindex is disallowed
+        doctest(TransmuteDims, manual=false)
 
-    tjm = TransmutedDimsArray(jm, (2,1))
-    j2 = jm .* log.(tjm) ./ 2
-    @test j2 isa JLArray
-    @test collect(j2) ≈ m .* log.(m') ./ 2
-
-    jmd = transmute(jm, (1,1,2))
-    j3 = jmd .+ 2 .* jmd .+ 1
-    @test j3 isa JLArray
-    @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
-
-    @test sprint(show, jm) isa String
-    io = IOBuffer()
-    Base.print_array(io, jm)
-    @test contains(String(take!(io)), string(m[1]))
-
+    end
 end
