@@ -162,6 +162,14 @@ end
         max(w...)
     end
 end
+# seems a waste to need a new method!
+@inline function invperm_zero(P::Tuple{}, S::NTuple{M,Integer}) where {M}
+    ntuple(M) do d
+        S[d]==1 || throw(ArgumentError(
+            "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = $(S[d]) != 1"))
+        0
+    end
+end
 
 @inline function is_off_diag(P::Tuple, I::Tuple)
     for a in 1:length(P)
@@ -404,6 +412,18 @@ function invperm_zero(P::NTuple{N,Int}, M::Int, sym::Symbol) where {N}
             size($sym,$d)==1 || throw(ArgumentError($str))
         end)
         max(w...)
+    end
+    Q, checks
+end
+
+function invperm_zero(P::Tuple{}, M::Int, sym::Symbol)
+    checks = []
+    Q = ntuple(M) do d
+        str = "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = != 1"
+        push!(checks, quote
+            size($sym,$d)==1 || throw(ArgumentError($str))
+        end)
+        0
     end
     Q, checks
 end

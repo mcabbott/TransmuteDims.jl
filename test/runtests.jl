@@ -207,6 +207,21 @@ end
     @test q == transmutedims(r, (1,0,1,1))
 
 end
+@testset "zero dims" begin
+
+    @test transmute(fill(3), (1,2)) isa Matrix
+    @test transmute(fill(3), ()) isa Array{Int,0}
+    @test transmute([3], ()) isa Array{Int,0}
+
+    @test transmute(fill(3), Val((1,2))) isa Matrix
+    @test transmute(fill(3), Val(())) isa Array{Int,0}
+    @test transmute([3], Val(())) isa Array{Int,0}
+
+    @test TransmutedDimsArray(fill(3), (1,2)) isa AbstractMatrix
+    @test TransmutedDimsArray(fill(3), ()) isa AbstractArray{Int,0}
+    @test TransmutedDimsArray([3], ()) isa AbstractArray{Int,0}
+
+end
 @testset "from Base" begin
 
     # keeps the num of dim
