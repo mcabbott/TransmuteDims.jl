@@ -316,6 +316,17 @@ using OffsetArrays, Random
 
 end
 
+using Documenter
+@testset "doctests" begin
+
+    if VERSION >= v"1.6-"
+        doctest(TransmuteDims, manual=false)
+    else
+        @warn "skipping doctests, on Julia $VERSION"
+    end
+
+end
+
 using GPUArrays
 GPUArrays.allowscalar(false)
 

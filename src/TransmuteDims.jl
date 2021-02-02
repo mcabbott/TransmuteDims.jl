@@ -27,7 +27,7 @@ picks simpler alternatives, etc.
 
 # Examples
 
-```jldoctest
+```jldoctest; setup=:(using TransmuteDims)
 julia> TransmutedDimsArray('a':'e', (2,1))  # like transpose
 1×5 transmute(::StepRange{Char, Int64}, (0, 1)) with eltype Char:
  'a'  'b'  'c'  'd'  'e'
@@ -273,19 +273,19 @@ Gives a result `== TransmutedDimsArray(A, perm⁺)`, but:
 
 # Examples
 
-```jldoctest; setup=:(using Random; Random.seed!(42);)
+```jldoctest; setup=:(using TransmuteDims, Random; Random.seed!(42);)
 julia> A = transpose(rand(Int8, 4, 2))
 2×4 transpose(::Matrix{Int8}) with eltype Int8:
- -112  -108   -92   -54
-  106   -75  -112  -105
+ 115    99  0  57
+  88  -105  3  76
 
 julia> B = transmute(A, (3,2,1))  # unwraps transpose, and then reshapes
 1×4×2 Array{Int8, 3}:
 [:, :, 1] =
- -112  -108  -92  -54
+ 115  99  0  57
 
 [:, :, 2] =
- 106  -75  -112  -105
+ 88  -105  3  76
 
 julia> B == TransmutedDimsArray(A, (0,2,1))  # same values, different type
 true
@@ -293,16 +293,16 @@ true
 julia> transmute(A, (2,2,0,1))
 4×4×1×2 transmute(::Matrix{Int8}, (1, 1, 0, 2)) with eltype Int8:
 [:, :, 1, 1] =
- -112     ⋅    ⋅    ⋅
-    ⋅  -108    ⋅    ⋅
-    ⋅     ⋅  -92    ⋅
-    ⋅     ⋅    ⋅  -54
+ 115   ⋅  ⋅   ⋅
+   ⋅  99  ⋅   ⋅
+   ⋅   ⋅  0   ⋅
+   ⋅   ⋅  ⋅  57
 
 [:, :, 1, 2] =
- 106    ⋅     ⋅     ⋅
-   ⋅  -75     ⋅     ⋅
-   ⋅    ⋅  -112     ⋅
-   ⋅    ⋅     ⋅  -105
+ 88     ⋅  ⋅   ⋅
+  ⋅  -105  ⋅   ⋅
+  ⋅     ⋅  3   ⋅
+  ⋅     ⋅  ⋅  76
 
 julia> ans == transmute(B, (2,2,1,3))
 true
