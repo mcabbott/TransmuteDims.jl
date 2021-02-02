@@ -320,8 +320,8 @@ using GPUArrays
 GPUArrays.allowscalar(false)
 
 jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
-if !isfile(jl_file)
-    @error "Did not find JLArrays, skipping tests of GPUArrays"
+if VERSION < v"1.5"
+    @warn "skipping tests of GPUArrays"
     exit()
 end
 include(jl_file)
