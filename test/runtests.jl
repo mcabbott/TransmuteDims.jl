@@ -323,7 +323,6 @@ else
     GPUArrays.allowscalar(false)
 
     jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
-        exit()
     include(jl_file)
     using .JLArrays # a fake GPU array, for testing
 
