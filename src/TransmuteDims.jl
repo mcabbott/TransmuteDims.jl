@@ -157,19 +157,15 @@ end
 @inline function invperm_zero(P::NTuple{N,Int}, S::NTuple{M,Integer}) where {N,M}
     Q = ntuple(M) do d
         w = ntuple(n -> P[n]==d ? n : 0, N)
-        +(w...) >= 1 || S[d]==1 || throw(ArgumentError(
+        x = max_zero(w...)
+        x >= 1 || S[d]==1 || throw(ArgumentError(
             "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = $(S[d]) != 1"))
-        max(w...)
+        x
     end
 end
-# seems a waste to need a new method!
-@inline function invperm_zero(P::Tuple{}, S::NTuple{M,Integer}) where {M}
-    ntuple(M) do d
-        S[d]==1 || throw(ArgumentError(
-            "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = $(S[d]) != 1"))
-        0
-    end
-end
+
+@inline max_zero() = 0
+@inline max_zero(xs...) = max(xs...)
 
 @inline function is_off_diag(P::Tuple, I::Tuple)
     for a in 1:length(P)
@@ -408,22 +404,11 @@ function invperm_zero(P::NTuple{N,Int}, M::Int, sym::Symbol) where {N}
     Q = ntuple(M) do d
         w = ntuple(n -> P[n]==d ? n : 0, N)
         str = "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = != 1"
-        +(w...) >= 1 || push!(checks, quote
+        x = max_zero(w...)
+        x >= 1 || push!(checks, quote
             size($sym,$d)==1 || throw(ArgumentError($str))
         end)
-        max(w...)
-    end
-    Q, checks
-end
-
-function invperm_zero(P::Tuple{}, M::Int, sym::Symbol)
-    checks = []
-    Q = ntuple(M) do d
-        str = "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = != 1"
-        push!(checks, quote
-            size($sym,$d)==1 || throw(ArgumentError($str))
-        end)
-        0
+        x
     end
     Q, checks
 end
