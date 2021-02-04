@@ -323,7 +323,6 @@ else
     GPUArrays.allowscalar(false)
 
     jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
-        exit()
     include(jl_file)
     using .JLArrays # a fake GPU array, for testing
 
@@ -349,6 +348,43 @@ else
         @test contains(String(take!(io)), string(m[1]))
 
     end
+end
+
+using Zygote
+@testset "Zygote" begin
+
+    # sizes, and no errors!
+    @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, transmute(x, (2,1,1))), rand(2,3))[1]) == (2,3)
+    @test_broken size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+
+    @test size(gradient(x -> sum(sin, transmute(x, (1,))), rand(3,1))[1]) == (3,1)
+    @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(3,1))[1]) == (3,1)
+    @test size(gradient(x -> sum(sin, transmute(x, (1,1))), rand(3,1))[1]) == (3,1)
+    @test_broken size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+
+    @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+
+    # values
+    v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
+
+    fwd, back = pullback(x -> transmute(x, (2,1)), v)
+    @test fwd == v'
+    @test back(ones(3,1))[1] == ones(3)
+    @test back(v')[1] == v  # awkward reshape(adjoint)
+
+    # extracting diagonals
+    fwd, back = pullback(x -> transmute(x, (1,1)), v)
+    @test fwd == Diagonal(v)
+    @test back(m)[1] == diag(m)
+    @test_broken back(m[:,:,:,:])[1] == diag(m)  # trivial extra dimensions, different path
+
+    fwd, back = pullback(x -> transmute(x, (1,1,2)), m)
+    @test fwd[:,:,1] == Diagonal(m[:,1])
+    @test back(t)[1] == [t[i,i,k] for i in 1:3, k in 1:3]
+
 end
 
 if VERSION < v"1.6-"
