@@ -52,3 +52,40 @@ Base.PermutedDimsArray(A::TransmutedDimsArray, perm) = transmute(A, perm)
 
 #========== Reductions ==========#
 
+# Same strategy as in https://github.com/JuliaLang/julia/pull/39513
+
+function Base.mapreducedim!(f, op, B::AbstractArray, A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q}
+    if unique_or_zero(Val(P))
+        # any dense transmutation
+        Base.mapreducedim!(f, op, transmute(B, Q), parent(A))  # using Val(Q) changes nothing
+    else
+        # default next step
+        Base._mapreducedim!(f, op, B, A)
+    end
+    B
+end
+
+if VERSION > v"1.6-"
+    Base._mapreduce_dim(f, op, init::Base._InitialValue, A::TransmutedDimsArray, dims::Colon) =
+        _mapreduce_scalar(f, op, init, A, dims)
+else
+    Base._mapreduce_dim(f, op, init::NamedTuple{()}, A::TransmutedDimsArray, dims::Colon) =
+        _mapreduce_scalar(f, op, init, A, dims)
+end
+
+@inline function _mapreduce_scalar(f, op, init, A::TransmutedDimsArray{T,N,P}, dims::Colon) where {T,N,P}
+    if dims === Colon() && f === identity && op === Base.add_sum
+        # safe & easy
+        Base._mapreduce_dim(f, op, init, parent(A), dims)
+    elseif unique_or_zero(Val(P))
+        # any dense transmutation
+        Base._mapreduce_dim(f, op, init, parent(A), dims)
+    elseif op === Base.add_sum && iszero(f(zero(T)))
+        # like sum(::Diagonal)
+        Base._mapreduce_dim(f, op, init, parent(A), dims)
+    else
+        # default next step
+        Base._mapreduce(f, op, IndexStyle(A), A)
+    end
+end
+

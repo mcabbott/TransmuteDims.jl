@@ -1,13 +1,19 @@
+
 using ChainRulesCore, LinearAlgebra
 
 function ChainRulesCore.rrule(::Type{<:TransmutedDimsArray{T,N,P,Q,AT}}, A::AbstractArray) where {T,N,P,Q,AT}
     B = TransmutedDimsArray{T,N,P,Q,AT}(A)
-    ∇TransmutedDimsArray = if unique_or_zero(P)
-        Δ -> (NO_FIELDS, transmute(Δ, Q), Zero())
-    else
-        Δ ->  (NO_FIELDS, _undiagonal(Δ, P, Q), Zero())
+    function transmute_back(Δ::AbstractArray)
+        if unique_or_zero(Val(P))
+            (NO_FIELDS, transmute(Δ, Q), Zero())
+        else
+            (NO_FIELDS, _undiagonal(Δ, P, Q), Zero())
+        end
     end
-    B, ∇TransmutedDimsArray
+    function transmute_back(Δ::Composite)
+        (NO_FIELDS, Δ.parent, Zero())
+    end
+    B, transmute_back
 end
 
 function _undiagonal(Δ::AbstractArray, P::NTuple{N,Int}, Q::NTuple{M,Int}) where {M,N}

@@ -70,13 +70,6 @@ end
 
     @test transmute(ones(3) .+ im, (1,))[1] == 1 + im # was an ambiguity error
 
-    # reductions
-    @test sum(transmute(m,(2,1,3))) == sum(m)
-    @test sum(transmute(m,(1,1,2))) == sum(m)
-    @test sum(TransmutedDimsArray(m,(1,2)); dims=1) == sum(m, dims=1)
-    @test sum(TransmutedDimsArray(m,(2,1)); dims=1) == sum(m', dims=1)
-    @test sum(TransmutedDimsArray(m,(2,1)), dims=2) == sum(m', dims=2)
-
     # reshape
     @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector
     @test vec(TransmutedDimsArray(m, (2,0,1))) isa Base.ReshapedArray
@@ -138,6 +131,41 @@ end
     # unwrapping caused by transpose etc
     @test transpose(TransmutedDimsArray(m, (2,1))) isa Matrix
     @test adjoint(TransmutedDimsArray(v, (0,1))) isa Matrix
+
+end
+@testset "reductions" begin
+
+    m = rand(1:99, 3,4)
+
+    # reductions
+    @test sum(transmute(m,(2,1,3))) == sum(m)
+    @test sum(transmute(m,(1,1,2))) == sum(m)
+    @test prod(transmute(m,(1,1,2))) == 0
+    @test sum(x->x+1, transmute(m,(1,1,2))) == sum(m) + 3*3*4
+
+    @test sum(TransmutedDimsArray(m,(1,2)); dims=1) == sum(m, dims=1)
+    @test sum(TransmutedDimsArray(m,(2,1)); dims=1) == sum(m', dims=1)
+    @test sum(TransmutedDimsArray(m,(2,1)), dims=2) == sum(m', dims=2)
+    @test sum(x->x+1, TransmutedDimsArray(m,(2,1)), dims=2) == sum(x->x+1, m', dims=2)
+
+    @test sum(transmute(m,(1,1,2)), dims=1) == sum(collect(transmute(m,(1,1,2))), dims=1)
+    @test sum(transmute(m,(1,1,1,2)), dims=1) == sum(collect(transmute(m,(1,1,1,2))), dims=1)
+    @test sum(transmute(m,(1,1,2)), dims=(1,2)) == sum(collect(transmute(m,(1,1,2))), dims=(1,2))
+    @test prod(transmute(m,(1,1,2)), dims=(1,2)) == prod(collect(transmute(m,(1,1,2))), dims=(1,2))
+
+    g = TransmutedDimsArray(m, (1,0,2)) # could be an Array
+    t = transmute(m, (2,0,1))
+
+    @test sum(g, dims=2) == g
+    @test sum(t, dims=2) == t
+    @test sum(x->x+1, t, dims=2) == sum(x->x+1, collect(t), dims=2)
+
+    x = rand(1:99, 5,4,3,2);
+    x1 = permutedims(x, (4,1,2,3))
+    x3 = TransmutedDimsArray(x, (4,1,2,3))
+    @test sum(x1, dims=3) == sum(x3, dims=3)
+    @test sum(x1, dims=(2,4)) == sum(x3, dims=(2,4))
+    @test sum(x->x+1, x1, dims=(2,4)) == sum(x->x+1, x3, dims=(2,4))
 
 end
 @testset "dropdims" begin
@@ -352,20 +380,21 @@ end
 
 using Zygote
 @testset "Zygote" begin
+    NEW = VERSION >= v"1.6-"
 
     # sizes, and no errors!
     @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(2,3))[1]) == (2,3)
     @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3))[1]) == (2,3)
     @test size(gradient(x -> sum(sin, transmute(x, (2,1,1))), rand(2,3))[1]) == (2,3)
-    @test_broken size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+    NEW && @test size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
 
     @test size(gradient(x -> sum(sin, transmute(x, (1,))), rand(3,1))[1]) == (3,1)
     @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(3,1))[1]) == (3,1)
     @test size(gradient(x -> sum(sin, transmute(x, (1,1))), rand(3,1))[1]) == (3,1)
-    @test_broken size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+    NEW && @test size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
 
-    @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
 
     # values
     v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
