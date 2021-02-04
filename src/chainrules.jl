@@ -33,11 +33,3 @@ function _undiagonal(Δ::AbstractArray, P::NTuple{N,Int}, Q::NTuple{M,Int}) wher
     end
     out
 end
-
-unique_or_zero(P::Tuple{}) = true
-function unique_or_zero(P::Tuple)
-    first(P) == 0 && return true
-    first(P) in Base.tail(P) && return false
-    return unique_or_zero(Base.tail(P))
-end
-
