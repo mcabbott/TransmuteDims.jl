@@ -167,9 +167,6 @@ end
     @test sum(x1, dims=(2,4)) == sum(x3, dims=(2,4))
     @test sum(x->x+1, x1, dims=(2,4)) == sum(x->x+1, x3, dims=(2,4))
 
-    xs3 = sum(x3, dims=(2,4)) # new_P simplifies this
-    @test transmute(xs3, (3,1,2)) isa Array
-
 end
 @testset "dropdims" begin
 
