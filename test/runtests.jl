@@ -380,20 +380,21 @@ end
 
 using Zygote
 @testset "Zygote" begin
+    NEW = VERSION >= v"1.6-"
 
     # sizes, and no errors!
     @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(2,3))[1]) == (2,3)
     @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3))[1]) == (2,3)
     @test size(gradient(x -> sum(sin, transmute(x, (2,1,1))), rand(2,3))[1]) == (2,3)
-    @test_broken size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+    NEW && @test size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
 
     @test size(gradient(x -> sum(sin, transmute(x, (1,))), rand(3,1))[1]) == (3,1)
     @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(3,1))[1]) == (3,1)
     @test size(gradient(x -> sum(sin, transmute(x, (1,1))), rand(3,1))[1]) == (3,1)
-    @test_broken size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+    NEW && @test size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
 
-    @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
 
     # values
     v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
