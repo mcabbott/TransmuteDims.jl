@@ -52,3 +52,49 @@ Base.PermutedDimsArray(A::TransmutedDimsArray, perm) = transmute(A, perm)
 
 #========== Reductions ==========#
 
+# Different strategy to that in https://github.com/JuliaLang/julia/pull/39513
+# this may return another transmuted array. But it infers badly.
+
+function Base.mapreduce(f, op, A::TransmutedDimsArray{T,N,P,Q,AT}; dims=(:), init=Base._InitialValue()) where {T,N,P,Q,AT}
+    if dims === Colon() && f === identity && op === Base.add_sum
+        # any complete sum, including equivalent of sum(::Diagonal)
+        mapreduce(f, op, parent(A); dims=(:), init=init)
+    elseif unique_or_zero(P)
+        # any dense transmutation
+        if dims === Colon()
+            mapreduce(f, op, parent(A); dims=(:), init=init)
+        # elseif ! any(iszero, P)
+        #     new_dims = map(d -> P[d], Tuple(dims))
+        #     B = mapreduce(f, op, parent(A); dims=new_dims, init=init)
+        #     new_P = map(p -> p in new_dims ? 0 : p, P)
+        #     transmute(B, new_P)
+        else
+            new_dims = filter(!=(0), map(d -> P[d], Tuple(dims)))
+            B = mapreduce(f, op, parent(A); dims=new_dims, init=init)
+            # this new_P step is optional, but sometimes allows simplifications.
+            new_P = map(p -> p in new_dims ? 0 : p, P)
+            # new_P = map(p -> Q[p] in dims ? 0 : p, P)
+            # @show P Q dims new_dims new_P
+            transmute(B, new_P)
+            # transmute(B, P)
+        end
+    else
+        # cases like sum(::Diagonal; dims), or prod(::Diagonal), use default path
+        Base._mapreduce_dim(f, op, init, A, dims)
+
+        # # Don't sum over any duplicated dimension? Not quite right, e.g. dims=(1,2)
+        # tmp = map(dims) do d
+        #     p = P[d]
+        #     count(isequal(p), P) > 1 ? 0 : d
+        # end
+        # new_dims = filter(!=(0), Tuple(tmp))
+
+        # # Collapse to trivial summed repeated? Not quite right, transmute(1:10, (1,1,1))
+        # new_P = ntuple(d -> P[d] in P[d+1:end] ? 0 : P[d], length(P))
+        # B = mapreduce(f, op, parent(A); dims=new_dims, init=init)
+
+        # And still that would only be for sum, not prod
+        # transmute(B, new_P)
+    end
+end
+
