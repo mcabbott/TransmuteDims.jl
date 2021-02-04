@@ -74,11 +74,11 @@ getinvperm(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
 
 Base.parent(A::TransmutedDimsArray) = A.parent
 
-Base.size(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
-    genperm_zero(size(parent(A)), perm)
+Base.size(A::TransmutedDimsArray{T,N,P}) where {T,N,P} =
+    genperm_zero(size(parent(A)), P)
 
-Base.axes(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
-    genperm_zero(axes(parent(A)), perm, Base.OneTo(1))
+Base.axes(A::TransmutedDimsArray{T,N,P}) where {T,N,P} =
+    genperm_zero(axes(parent(A)), P, Base.OneTo(1))
 
 Base.similar(A::TransmutedDimsArray, T::Type, dims::Base.Dims) = similar(parent(A), T, dims)
 
@@ -93,8 +93,8 @@ Base.unsafe_convert(::Type{Ptr{T}}, A::TransmutedDimsArray{T}) where {T} =
 Base.pointer(A::TransmutedDimsArray, i::Integer) = throw(ArgumentError(
     "pointer(A, i) is deliberately unsupported for TransmutedDimsArray"))
 
-Base.strides(A::TransmutedDimsArray{T,N,perm}) where {T,N,perm} =
-    genperm_zero(strides(parent(A)), perm, 0)
+Base.strides(A::TransmutedDimsArray{T,N,P}) where {T,N,P} =
+    genperm_zero(strides(parent(A)), P, 0)
 
 Base.dataids(A::TransmutedDimsArray) = Base.dataids(A.parent)
 
@@ -196,15 +196,13 @@ end
 end
 @inline increasing_or_zero(::Tuple{}, prev=0) = true
 
-@inline function unique_or_zero(perm)  # only generated version is called
-    for i in 1:length(perm)
-        d = perm[i]
-        d == 0 && continue
-        d in perm[i+1:end] && return false
-    end
-    return true
+@inline function unique_or_zero(P::Tuple)
+    first(P) == 0 && return true
+    first(P) in Base.tail(P) && return false
+    return unique_or_zero(Base.tail(P))
 end
-@generated unique_or_zero(::Val{perm}) where {perm} = unique_or_zero(perm)
+@inline unique_or_zero(P::Tuple{}) = true
+@generated unique_or_zero(::Val{P}) where {P} = unique_or_zero(P)
 
 #========== Printing ==========#
 
