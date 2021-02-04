@@ -69,7 +69,8 @@ if VERSION > v"1.6-"
     Base._mapreduce_dim(f, op, init::Base._InitialValue, A::TransmutedDimsArray, dims::Colon) =
         _mapreduce_scalar(f, op, init, A, dims)
 else
-
+    Base._mapreduce_dim(f, op, init::NamedTuple{()}, A::TransmutedDimsArray, dims::Colon) =
+        _mapreduce_scalar(f, op, init, A, dims)
 end
 
 @inline function _mapreduce_scalar(f, op, init, A::TransmutedDimsArray{T,N,P}, dims::Colon) where {T,N,P}
