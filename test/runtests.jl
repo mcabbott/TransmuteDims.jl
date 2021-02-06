@@ -1,9 +1,6 @@
 using TransmuteDims
 using Test, LinearAlgebra, Random
 
-# transmutedims(A,p) = collect(transmute(A,p)) # just to run old tests
-transmutedims!(Z,A,p) = (Z .= transmute(A,p))
-
 @testset "eager" begin
 
     m = rand(1:99, 3,4)
@@ -22,7 +19,7 @@ transmutedims!(Z,A,p) = (Z .= transmute(A,p))
 
     @test_throws ArgumentError transmutedims!(o314, m, (1,))
     @test_throws Exception transmutedims!(o314, m, (1,0,0))
-    @test_throws DimensionMismatch transmutedims!(o314, m, (1,2,2))
+    @test_throws Exception transmutedims!(o314, m, (1,2,2))
 
     @test_throws Exception transmutedims!(o314, m, (2,0,1)) # wrong size
 

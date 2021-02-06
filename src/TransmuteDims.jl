@@ -1,6 +1,6 @@
 module TransmuteDims
 
-export TransmutedDimsArray, transmute, transmutedims
+export TransmutedDimsArray, transmute, transmutedims, transmutedims!
 
 #========== alla PermutedDimsArrays, mostly ==========#
 
@@ -513,6 +513,16 @@ end
         out = similar(data, S)
         copy!(out, TransmutedDimsArray{T,N,P,Q,AT}(data))
     end
+end
+
+"""
+    transmutedims!(dst, src, perm⁺)
+
+This is just `copy!(dst, transmute(src, perm⁺))`.
+"""
+@inline function transmutedims!(dst, src::AbstractArray, perm)
+    P = sanitise_zero(perm, Val(ndims(src)))
+    copy!(dst, _transmute(src, P))  # using _transmute might do one more reshape than ideal
 end
 
 #========== The rest ==========#
