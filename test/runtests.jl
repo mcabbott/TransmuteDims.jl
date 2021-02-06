@@ -1,9 +1,6 @@
 using TransmuteDims
 using Test, LinearAlgebra, Random
 
-transmutedims(A,p) = collect(transmute(A,p)) # just to run old tests
-transmutedims!(Z,A,p) = (Z .= transmute(A,p))
-
 @testset "eager" begin
 
     m = rand(1:99, 3,4)
@@ -11,18 +8,26 @@ transmutedims!(Z,A,p) = (Z .= transmute(A,p))
     @test transmutedims(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
     @test transmutedims(m, (2,nothing,1)) == reshape(permutedims(m), 4,1,3)
 
+    @test transmutedims(m, (3,2,1)) == reshape(m', 1,4,3)
+    @test transmutedims(transmutedims(m, (3,2,1)), (3,2)) == m
+
     o314 = rand(3,1,4);
     @test transmutedims!(o314, m, (1,0,2)) == reshape(m, 3,1,4)
     o413 = rand(4,1,3);
     @test transmutedims!(o413, m, (2,99,1)) == reshape(permutedims(m), 4,1,3)
     @test o413 == reshape(permutedims(m), 4,1,3)
 
+    # default perm
+    @test transmutedims(m) == m'
+    @test transmutedims(m[:,1]) == m[:,1]'
+
+    # errors
     @test_throws ArgumentError transmutedims(m, (1,))    # too few
     @test_throws ArgumentError transmutedims(m, (1,0,0)) # 2 doesn't appear
 
     @test_throws ArgumentError transmutedims!(o314, m, (1,))
     @test_throws Exception transmutedims!(o314, m, (1,0,0))
-    @test_throws DimensionMismatch transmutedims!(o314, m, (1,2,2))
+    @test_throws Exception transmutedims!(o314, m, (1,2,2))
 
     @test_throws Exception transmutedims!(o314, m, (2,0,1)) # wrong size
 
@@ -54,7 +59,7 @@ end
     @test m[3,2] == 333
 
     # linear indexing
-    @test_skip Base.IndexStyle(g) == IndexLinear() # perhaps we don't want this
+    @test_skip Base.IndexStyle(g) == IndexLinear() # perhaps don't want this, transmute() avoids it
     @test Base.IndexStyle(t) == IndexCartesian()
     g[4] = 444
     @test m[4] == 444
@@ -64,7 +69,7 @@ end
     # linear indexing, for more constructors
     y = zeros(1,2,3);
     @test IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear() # it's an Array
-    @test_skip IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
+    @test_broken IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear() # perhaps not.
     @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
     @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
 
@@ -203,8 +208,16 @@ end
     @test transmute(t, Val((3,1))) === m
     @test transmute(t, Val((1,3))) === transpose(m)
 
+    @test transmutedims(g, (1,3)) === m
+    @test transmutedims(r, (1,3)) == m
+    @test transmutedims(r, (1,3)) isa Matrix
+    @test transmutedims(t, (3,1)) === m
+    @test transmutedims(t, (1,3)) == transpose(m)
+
+    # errors
     @test_throws ArgumentError transmute(g, (1,2))
     @test_throws ArgumentError transmute(g, Val((1,2)))
+    @test_throws ArgumentError transmutedims(g, (1,2))
 
 end
 @testset "diagonal" begin
@@ -234,6 +247,12 @@ end
     # eager
     @test q == transmutedims(r, (1,0,1,1))
 
+    # dropdims
+    @test transmute(rand(3,1), (1,1)) isa Diagonal
+    @test_broken transmute(rand(3,1), Val((1,1))) isa Diagonal  # not worth the hassle
+    @test transmute(rand(1,3), (2,2)) isa Diagonal
+    @test_throws Exception transmute(rand(3,2), (1,1))
+
 end
 @testset "zero dims" begin
 
@@ -248,6 +267,10 @@ end
     @test TransmutedDimsArray(fill(3), (1,2)) isa AbstractMatrix
     @test TransmutedDimsArray(fill(3), ()) isa AbstractArray{Int,0}
     @test TransmutedDimsArray([3], ()) isa AbstractArray{Int,0}
+
+    @test transmutedims(fill(3), (1,2)) isa Matrix
+    @test transmutedims(fill(3), ()) isa Array{Int,0}
+    @test transmutedims([3], ()) isa Array{Int,0}
 
 end
 @testset "from Base" begin
@@ -378,39 +401,40 @@ else
     end
 end
 
+@info "loading Zygote 🐌"
 using Zygote
-@testset "Zygote" begin
+@testset "Zygote: $func" for func in [transmute, transmutedims]
     NEW = VERSION >= v"1.6-"
 
     # sizes, and no errors!
-    @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(2,3))[1]) == (2,3)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3))[1]) == (2,3)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,1,1))), rand(2,3))[1]) == (2,3)
-    NEW && @test size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, func(x, (2,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, func(x, (2,1,1))), rand(2,3))[1]) == (2,3)
+    NEW && func==transmute && @test size(gradient(x -> sum(sin, func(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
 
-    @test size(gradient(x -> sum(sin, transmute(x, (1,))), rand(3,1))[1]) == (3,1)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(3,1))[1]) == (3,1)
-    @test size(gradient(x -> sum(sin, transmute(x, (1,1))), rand(3,1))[1]) == (3,1)
-    NEW && @test size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+    @test size(gradient(x -> sum(sin, func(x, (1,))), rand(3,1))[1]) == (3,1)
+    @test size(gradient(x -> sum(sin, func(x, (2,1))), rand(3,1))[1]) == (3,1)
+    NEW || @test size(gradient(x -> sum(sin, func(x, (1,1))), rand(3,1))[1]) == (3,1)
+    NEW && func==transmute && @test size(gradient(x -> sum(sin, func(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
 
-    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
-    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, func(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
 
     # values
     v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
 
-    fwd, back = pullback(x -> transmute(x, (2,1)), v)
+    fwd, back = pullback(x -> func(x, (2,1)), v)
     @test fwd == v'
     @test back(ones(3,1))[1] == ones(3)
     @test back(v')[1] == v  # awkward reshape(adjoint)
 
     # extracting diagonals
-    fwd, back = pullback(x -> transmute(x, (1,1)), v)
+    fwd, back = pullback(x -> func(x, (1,1)), v)
     @test fwd == Diagonal(v)
     @test back(m)[1] == diag(m)
-    @test_broken back(m[:,:,:,:])[1] == diag(m)  # trivial extra dimensions, different path
+    @test_skip back(m[:,:,:,:])[1] == diag(m)  # trivial extra dimensions, different path
 
-    fwd, back = pullback(x -> transmute(x, (1,1,2)), m)
+    fwd, back = pullback(x -> func(x, (1,1,2)), m)
     @test fwd[:,:,1] == Diagonal(m[:,1])
     @test back(t)[1] == [t[i,i,k] for i in 1:3, k in 1:3]
 

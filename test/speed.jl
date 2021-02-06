@@ -188,7 +188,7 @@ julia> @btime copyto!($M3, $(PermutedDimsArray(M2, (2,1)))); # same with M3 .=
   3.361 ms (0 allocations: 0 bytes)
 
 julia> @btime copyto!($M3, $(TransmutedDimsArray(M2, (2,1))));
-  3.362 ms (0 allocations: 0 bytes)
+  1.569 ms (0 allocations: 0 bytes)
 
 # three dimensions
 
@@ -197,6 +197,9 @@ julia> @btime permutedims!($T3, $T1, (3,2,1));
 
 julia> @btime copyto!($T3, $(PermutedDimsArray(T1, (3,2,1))));
   4.528 ms (0 allocations: 0 bytes)
+
+julia> @btime copyto!($T3, $(TransmutedDimsArray(T1, (3,2,1))));
+  2.292 ms (0 allocations: 0 bytes)
 
 # fast library
 

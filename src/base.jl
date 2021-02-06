@@ -50,7 +50,7 @@ Base.adjoint(A::TransmutedDimsArray{<:Real, 2}) = transmute(A, Val((2,1)))
 
 Base.PermutedDimsArray(A::TransmutedDimsArray, perm) = transmute(A, perm)
 
-#========== Reductions ==========#
+#========== reductions ==========#
 
 # Same strategy as in https://github.com/JuliaLang/julia/pull/39513
 
@@ -89,3 +89,61 @@ end
     end
 end
 
+#========== copyto! ==========#
+
+# @propagate_inbounds
+function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q}
+    @boundscheck axes(dst) == axes(src) || throw(ArgumentError("arrays must have the same axes for copy! (consider using copyto!"))
+    if increasing_or_zero(P)  # just a reshape
+        copyto!(dst, parent(src))
+    else
+        if unique_or_zero(P)
+            _densecopy_permuted!(dst, parent(src), Val(P))
+        else
+            fill!(dst, zero(T))  # Diagonal-like
+            _copy_into!(dst, parent(src), Val(P))
+        end
+    end
+    dst
+end
+
+@generated function _densecopy_permuted!(dst::AbstractArray, src::AbstractArray, val::Val{P}) where {P}
+    Pminus = filter(!=(0), collect(P))
+    if 0 in P
+        SB = [:(axes(src,$p)) for p in Pminus]
+        Bex = :(reshape(dst, ($(SB...),)))
+    else
+        Bex = :dst
+    end
+    if sort(Pminus) == 1:ndims(src)
+        Aex = :src
+        perm = Pminus
+    else
+        SA = [:(axes(src,$d)) for d in 1:ndims(src) if d in Pminus]
+        Aex = :(reshape(src, ($(SA...),)))
+        perm = Tuple(sortperm(Pminus))
+    end
+    :(permutedims!($Bex, $Aex, $perm))
+end
+
+function _copy_into!(dst::AbstractArray, parent::AbstractArray, ::Val{P}) where {P}
+    @inbounds @simd for I in CartesianIndices(parent)
+        J = CartesianIndex(map(p -> p==0 ? 1 : I[p], P))
+        dst[J] = parent[I]
+    end
+end
+
+function Base.copyto!(dst::AbstractArray, src::TransmutedDimsArray)
+    if axes(dst) == axes(src)
+        copy!(dst, src)
+    elseif length(dst) == length(src)
+        copy!(reshape(dst, axes(src)), src)  # could save a reshape when increasing_or_zero(P)
+    elseif length(dst) < length(src)
+        throw(BoundsError(dst, lastindex(src)))
+    else
+        throw(BoundsError(src, lastindex(dst)))
+    end
+    dst
+end
+
+#========== the end. ==========#

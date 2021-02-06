@@ -1,6 +1,6 @@
 module TransmuteDims
 
-export TransmutedDimsArray, transmute
+export TransmutedDimsArray, transmute, transmutedims, transmutedims!
 
 #========== alla PermutedDimsArrays, mostly ==========#
 
@@ -335,29 +335,37 @@ function transmute end
         transpose(data)
     elseif M == 1 && P == (1,1)
         Diagonal(data)
+    elseif may_reshape(AT) && N == 2 && P[1] == P[2]
+        Diagonal(vec(data))
     else
         TransmutedDimsArray{T,length(P),P,Q,AT}(data)
     end
 end
 
-@inline function _transmute(data::LazyTranspose{<:AbstractVector}, perm)
-    new_perm = map(d -> d==1 ? 0 : d==2 ? 1 : d, perm)
-    _transmute(parent(data), new_perm)
-end
+for _fun in [:_transmute, :_transmutedims]
+    @eval begin
 
-@inline function _transmute(data::LazyTranspose{<:AbstractMatrix}, perm)
-    new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
-    _transmute(parent(data), new_perm)
-end
+        @inline function $_fun(data::LazyTranspose{<:AbstractVector}, perm)
+            new_perm = map(d -> d==1 ? 0 : d==2 ? 1 : d, perm)
+            $_fun(parent(data), new_perm)
+        end
 
-@inline function _transmute(data::LazyPermute{inner}, perm) where {inner}
-    new_perm = map(d -> d==0 ? 0 : inner[d], perm)
-    _transmute(parent(data), new_perm)
-end
+        @inline function $_fun(data::LazyTranspose{<:AbstractMatrix}, perm)
+            new_perm = map(d -> d==1 ? 2 : d==2 ? 1 : d, perm)
+            $_fun(parent(data), new_perm)
+        end
 
-@inline function _transmute(data::Diagonal, perm)
-    new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
-    _transmute(parent(data), new_perm)
+        @inline function $_fun(data::LazyPermute{inner}, perm) where {inner}
+            new_perm = map(d -> d==0 ? 0 : inner[d], perm)
+            $_fun(parent(data), new_perm)
+        end
+
+        @inline function $_fun(data::Diagonal, perm)
+            new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
+            $_fun(parent(data), new_perm)
+        end
+
+    end
 end
 
 #========== Version with Val(perm) ==========#
@@ -380,7 +388,7 @@ function _trex(ex, AT, P)
 
     noreshape = if M == 2 && P == (2,1) && T<:Number
         :(transpose($sym))
-    elseif M == 1 && P == (1,1)
+    elseif M == 1 && P == (1,1) # "may_reshape(AT) && N == 2 && P[1] == P[2]" will be messy.
         :(Diagonal($sym))
     else
         :(TransmutedDimsArray{$T,$(length(P)),$P,$Q,$AT}($sym))
@@ -439,6 +447,103 @@ end
 function _trex(ex, ::Type{AT}, perm) where {AT<:Diagonal{T,PT}} where {T,PT}
     new_perm = map(d -> d==1 ? 1 : d==2 ? 1 : 0, perm)
     _trex(:(parent($ex)), PT, new_perm)
+end
+
+
+#========== More eager transmutedims() ==========#
+
+"""
+    transmutedims(A, perm⁺)
+
+This is an eager version of [`transmute`](@ref), which always returns a `DenseArray`,
+but is not guaranteed to copy the data.
+
+Like `transmute`, it knows to un-wrap `PermutedDimsArray`, `Transpose{<:Number}`, etc.
+
+Like both `transmute` and `TransmutedDimsArray`, it accepts in addition to perturbations,
+values outside `1:ndims(A)` (which insert trivial dimensions), omitted values
+(which like `dropdims` must be dimensions of size 1), and repeated values (which generalise `diagm`).
+
+# Examples
+
+```jldoctest; setup=:(using TransmuteDims)
+julia> A = transmutedims(reshape(1:15,3,5), (3,2,1))  # A is a new Array
+1×5×3 Array{Int64, 3}:
+[:, :, 1] =
+ 1  4  7  10  13
+
+[:, :, 2] =
+ 2  5  8  11  14
+
+[:, :, 3] =
+ 3  6  9  12  15
+
+julia> B = transmutedims(A, (2,3))  # drop A's first, trivial, dimension
+5×3 Matrix{Int64}:
+  1   2   3
+  4   5   6
+  7   8   9
+ 10  11  12
+ 13  14  15
+
+julia> C = transmutedims(adjoint(B), (2,1,0)); summary(C)  # un-wraps adjoint
+"5×3×1 Array{Int64, 3}"
+
+julia> D = transmutedims(adjoint(B), (1,0,2)); summary(D)  # unwraps, then permutes
+"3×1×5 Array{Int64, 3}"
+
+julia> B[5,3] = 5030;  # B and C are reshaped views of A
+
+julia> A[1,5,3]
+5030
+
+julia> C[5,3,1]
+5030
+
+julia> D[3,1,5]  # but D is not, it required a copy
+15
+
+julia> transmutedims(1:3)  # default perm = (0,1) for vectors
+1×3 Matrix{Int64}:
+ 1  2  3
+
+julia> transmutedims(B)  # default perm = (2,1) for matrices
+3×5 Matrix{Int64}:
+ 1  4  7  10    13
+ 2  5  8  11    14
+ 3  6  9  12  5030
+```
+"""
+@inline function transmutedims(data::AbstractArray, perm)
+    P = sanitise_zero(perm, Val(ndims(data)))
+    _transmutedims(data, P)
+end
+
+@inline transmutedims(data::AbstractMatrix) = _transmutedims(data, (2,1))
+
+@inline transmutedims(data::AbstractVector) = _transmutedims(data, (0,1))
+
+@inline function _transmutedims(data::AT, P) where {AT <: AbstractArray{T,M}} where {T,M}
+    N = length(P)
+    Q = invperm_zero(P, size(data))
+    S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
+    if may_reshape(AT) && M == N && P == ntuple(identity, N)  # trivial case demands may_reshape
+        data
+    elseif may_reshape(AT) && increasing_or_zero(P)
+        reshape(data, S)
+    else
+        copy(TransmutedDimsArray{T,N,P,Q,AT}(data))
+    end
+end
+
+"""
+    transmutedims!(dst, src, perm⁺)
+
+This is just `copy!(dst, transmute(src, perm⁺))`.
+"""
+@inline function transmutedims!(dst, src::AbstractArray, perm)
+    P = sanitise_zero(perm, Val(ndims(src)))
+    copy!(dst, _transmute(src, P))  # using _transmute might do one more reshape than ideal
 end
 
 #========== The rest ==========#
