@@ -187,8 +187,11 @@ julia> @btime copyto!($M3, $(transpose(M2)));
 julia> @btime copyto!($M3, $(PermutedDimsArray(M2, (2,1)))); # same with M3 .=
   3.361 ms (0 allocations: 0 bytes)
 
+julia> @btime transmutedims!($M3, $M2, (2,1)); # hmm
+  2.647 ms (0 allocations: 0 bytes)
+
 julia> @btime copyto!($M3, $(TransmutedDimsArray(M2, (2,1))));
-  1.569 ms (0 allocations: 0 bytes)
+  606.967 μs (62 allocations: 6.66 KiB)
 
 # three dimensions
 
@@ -199,9 +202,23 @@ julia> @btime copyto!($T3, $(PermutedDimsArray(T1, (3,2,1))));
   4.528 ms (0 allocations: 0 bytes)
 
 julia> @btime copyto!($T3, $(TransmutedDimsArray(T1, (3,2,1))));
-  2.292 ms (0 allocations: 0 bytes)
+  542.873 μs (61 allocations: 7.22 KiB)
 
-# fast library
+# allocating forms
+
+julia> @btime permutedims($M2);
+  1.599 ms (2 allocations: 7.63 MiB)
+
+julia> @btime transmutedims($M2);
+  808.915 μs (65 allocations: 7.64 MiB)
+
+julia> @btime permutedims($T1, (3,2,1));
+  2.459 ms (2 allocations: 7.63 MiB)
+
+julia> @btime transmutedims($T1, (3,2,1));
+  737.701 μs (62 allocations: 7.64 MiB)
+
+# fast library behind this
 
 julia> using Strided
 

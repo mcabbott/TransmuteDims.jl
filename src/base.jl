@@ -131,6 +131,7 @@ function _copy_into!(dst::AbstractArray, parent::AbstractArray, ::Val{P}) where 
         J = CartesianIndex(map(p -> p==0 ? 1 : I[p], P))
         dst[J] = parent[I]
     end
+    nothing
 end
 
 function Base.copyto!(dst::AbstractArray, src::TransmutedDimsArray)
