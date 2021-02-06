@@ -8,6 +8,9 @@ using Test, LinearAlgebra, Random
     @test transmutedims(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
     @test transmutedims(m, (2,nothing,1)) == reshape(permutedims(m), 4,1,3)
 
+    @test transmutedims(m, (3,2,1)) == reshape(m', 1,4,3)
+    @test transmutedims(transmutedims(m, (3,2,1)), (3,2)) == m
+
     o314 = rand(3,1,4);
     @test transmutedims!(o314, m, (1,0,2)) == reshape(m, 3,1,4)
     o413 = rand(4,1,3);

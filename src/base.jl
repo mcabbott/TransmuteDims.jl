@@ -107,18 +107,20 @@ function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where
 end
 
 @generated function _densecopy_permuted!(dst::AbstractArray, src::AbstractArray, val::Val{P}) where {P}
-    perm = filter(!=(0), P)
+    Pminus = filter(!=(0), collect(P))
     if 0 in P
-        SB = [:(axes(src,$p)) for p in perm]
+        SB = [:(axes(src,$p)) for p in Pminus]
         Bex = :(reshape(dst, ($(SB...),)))
     else
         Bex = :dst
     end
-    if issubset(1:ndims(src), P)
+    if sort(Pminus) == 1:ndims(src)
         Aex = :src
+        perm = Pminus
     else
-        SA = [:(axes(src,$d)) for d in 1:ndims(src) if d in P]
+        SA = [:(axes(src,$d)) for d in 1:ndims(src) if d in Pminus]
         Aex = :(reshape(src, ($(SA...),)))
+        perm = Tuple(sortperm(Pminus))
     end
     :(permutedims!($Bex, $Aex, $perm))
 end
