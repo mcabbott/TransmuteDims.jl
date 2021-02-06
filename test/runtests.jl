@@ -403,38 +403,38 @@ end
 
 @info "loading Zygote 🐌"
 using Zygote
-@testset "Zygote: $transmute" for transmute in [transmute, transmutedims]
+@testset "Zygote: $func" for func in [transmute, transmutedims]
     NEW = VERSION >= v"1.6-"
 
     # sizes, and no errors!
-    @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(2,3))[1]) == (2,3)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3))[1]) == (2,3)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,1,1))), rand(2,3))[1]) == (2,3)
-    NEW && @test size(gradient(x -> sum(sin, transmute(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, func(x, (2,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3))[1]) == (2,3)
+    @test size(gradient(x -> sum(sin, func(x, (2,1,1))), rand(2,3))[1]) == (2,3)
+    NEW && func==transmute && @test size(gradient(x -> sum(sin, func(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
 
-    @test size(gradient(x -> sum(sin, transmute(x, (1,))), rand(3,1))[1]) == (3,1)
-    @test size(gradient(x -> sum(sin, transmute(x, (2,1))), rand(3,1))[1]) == (3,1)
-    @test size(gradient(x -> sum(sin, transmute(x, (1,1))), rand(3,1))[1]) == (3,1)
-    NEW && @test size(gradient(x -> sum(sin, transmute(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+    @test size(gradient(x -> sum(sin, func(x, (1,))), rand(3,1))[1]) == (3,1)
+    @test size(gradient(x -> sum(sin, func(x, (2,1))), rand(3,1))[1]) == (3,1)
+    NEW || @test size(gradient(x -> sum(sin, func(x, (1,1))), rand(3,1))[1]) == (3,1)
+    NEW && func==transmute && @test size(gradient(x -> sum(sin, func(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
 
-    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
-    NEW || @test size(gradient(x -> sum(sin, transmute(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(gradient(x -> sum(sin, func(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
 
     # values
     v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
 
-    fwd, back = pullback(x -> transmute(x, (2,1)), v)
+    fwd, back = pullback(x -> func(x, (2,1)), v)
     @test fwd == v'
     @test back(ones(3,1))[1] == ones(3)
     @test back(v')[1] == v  # awkward reshape(adjoint)
 
     # extracting diagonals
-    fwd, back = pullback(x -> transmute(x, (1,1)), v)
+    fwd, back = pullback(x -> func(x, (1,1)), v)
     @test fwd == Diagonal(v)
     @test back(m)[1] == diag(m)
     @test_skip back(m[:,:,:,:])[1] == diag(m)  # trivial extra dimensions, different path
 
-    fwd, back = pullback(x -> transmute(x, (1,1,2)), m)
+    fwd, back = pullback(x -> func(x, (1,1,2)), m)
     @test fwd[:,:,1] == Diagonal(m[:,1])
     @test back(t)[1] == [t[i,i,k] for i in 1:3, k in 1:3]
 
