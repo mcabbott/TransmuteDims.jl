@@ -252,3 +252,5 @@ julia> @btime @avx $M3 .= exp.($M1');  # vectorised
 julia> @btime @avx $M3 .= exp.($(TransmutedDimsArray(M1,(2,1))));
   7.547 ms (0 allocations: 0 bytes)
 
+julia> @btime @avx $M3 .= exp.(transmutedims($M1,(2,1)));
+  1.979 ms (65 allocations: 7.64 MiB)

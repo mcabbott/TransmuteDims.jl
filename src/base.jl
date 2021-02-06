@@ -107,6 +107,7 @@ function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where
     dst
 end
 
+# For Arrays, this dispatches to use Strided.jl version
 @generated function _densecopy_permuted!(dst::AbstractArray, src::AbstractArray, val::Val{P}) where {P}
     Pminus = filter(!=(0), collect(P))
     if 0 in P
