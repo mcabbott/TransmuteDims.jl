@@ -14,6 +14,11 @@ using Test, LinearAlgebra, Random
     @test transmutedims!(o413, m, (2,99,1)) == reshape(permutedims(m), 4,1,3)
     @test o413 == reshape(permutedims(m), 4,1,3)
 
+    # default perm
+    @test transmutedims(m) == m'
+    @test transmutedims(m[:,1]) == m[:,1]'
+
+    # errors
     @test_throws ArgumentError transmutedims(m, (1,))    # too few
     @test_throws ArgumentError transmutedims(m, (1,0,0)) # 2 doesn't appear
 

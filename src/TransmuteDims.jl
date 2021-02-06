@@ -502,12 +502,26 @@ julia> C[5,3,1]
 
 julia> D[3,1,5]  # but D is not, it required a copy
 15
+
+julia> transmutedims(1:3)  # default perm = (0,1) for vectors
+1×3 Matrix{Int64}:
+ 1  2  3
+
+julia> transmutedims(B)  # default perm = (2,1) for matrices
+3×5 Matrix{Int64}:
+ 1  4  7  10    13
+ 2  5  8  11    14
+ 3  6  9  12  5030
 ```
 """
 @inline function transmutedims(data::AbstractArray, perm)
     P = sanitise_zero(perm, Val(ndims(data)))
     _transmutedims(data, P)
 end
+
+@inline transmutedims(data::AbstractMatrix) = _transmutedims(data, (2,1))
+
+@inline transmutedims(data::AbstractVector) = _transmutedims(data, (0,1))
 
 @inline function _transmutedims(data::AT, P) where {AT <: AbstractArray{T,M}} where {T,M}
     N = length(P)
