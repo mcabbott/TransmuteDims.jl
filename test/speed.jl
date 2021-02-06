@@ -211,3 +211,27 @@ julia> @btime @strided permutedims!($M3, $M2, (2,1));
 julia> @btime @strided permutedims!($T3, $T1, (3,2,1));
   520.262 μs (65 allocations: 7.38 KiB)
 
+#========== Acceleration ==========#
+
+julia> @btime $M3 .= exp.($M1');
+  7.868 ms (0 allocations: 0 bytes)
+
+julia> @btime $M3 .= exp.($(TransmutedDimsArray(M1,(2,1))));
+  7.642 ms (0 allocations: 0 bytes)
+
+julia> using Strided
+
+julia> @btime @strided $M3 .= exp.($M1');  # multi-threaded
+  3.637 ms (64 allocations: 6.66 KiB)
+
+julia> @btime @strided $M3 .= exp.($(TransmutedDimsArray(M1,(2,1))));
+  3.640 ms (64 allocations: 6.66 KiB)
+
+julia> using LoopVectorization
+
+julia> @btime @avx $M3 .= exp.($M1');  # vectorised
+  1.893 ms (0 allocations: 0 bytes)
+
+julia> @btime @avx $M3 .= exp.($(TransmutedDimsArray(M1,(2,1))));
+  7.547 ms (0 allocations: 0 bytes)
+

@@ -8,9 +8,9 @@ but is unlike the other _transmute methods, which aim to unwrap.
 
 =#
 
-using Strided: StridedView
+using Strided
 
-@inline function _transmute(A::StridedView{T,M}, P) where {T,M}
+@inline function _transmute(A::Strided.StridedView{T,M}, P) where {T,M}
     Q = invperm_zero(P, size(A))  # also checks size of dropped dimensions
     N = length(P)
     if M == N && P == ntuple(identity, N)  # trivial case
@@ -18,12 +18,16 @@ using Strided: StridedView
     elseif unique_or_zero(P)
         sz = map(d -> d==0 ? 1 : size(A,d), P)
         st = map(d -> d==0 ? 0 : stride(A,d), P)
-        StridedView(A.parent, sz, st, A.offset, A.op)
+        Strided.StridedView(A.parent, sz, st, A.offset, A.op)
     elseif P == (1,1)
         Diagonal(A.parent)
     else
         TransmutedDimsArray{T,N,P,Q,typeof(A)}(A)
     end
+end
+
+@inline function Strided.StridedView(A::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q}
+    _transmute(StridedView(parent(A)), P)
 end
 
 #=
@@ -40,3 +44,12 @@ The eager transmutedims(A, perm) should also use this?
 #     LinearAlgebra.axpby!(one(T), _A, zero(T), dst)
 # end
 
+#         if isbitstype(eltype(A)) && isbitstype(eltype(C))
+#             @unsafe_strided A C _add!(α, A, β, C, (indCinA...,))
+#         else
+#             _add!(α, StridedView(A), β, StridedView(C), (indCinA...,))
+#         end
+
+# _add!(α, A::AbstractStridedView{<:Any,N},
+#         β, C::AbstractStridedView{<:Any,N}, indCinA::IndexTuple{N}) where N =
+#     LinearAlgebra.axpby!(α, permutedims(A, indCinA), β, C)
