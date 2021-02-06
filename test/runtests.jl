@@ -1,7 +1,7 @@
 using TransmuteDims
 using Test, LinearAlgebra, Random
 
-transmutedims(A,p) = collect(transmute(A,p)) # just to run old tests
+# transmutedims(A,p) = collect(transmute(A,p)) # just to run old tests
 transmutedims!(Z,A,p) = (Z .= transmute(A,p))
 
 @testset "eager" begin
@@ -233,6 +233,12 @@ end
 
     # eager
     @test q == transmutedims(r, (1,0,1,1))
+
+    # dropdims
+    @test transmute(rand(3,1), (1,1)) isa Diagonal
+    @test_broken transmute(rand(3,1), Val((1,1))) isa Diagonal
+    @test_broken transmute(rand(1,3), (2,2)) isa Diagonal
+    @test_throws Exception transmute(rand(3,2), (1,1))
 
 end
 @testset "zero dims" begin
