@@ -466,7 +466,7 @@ values outside `1:ndims(A)` (which insert trivial dimensions), omitted values
 
 # Examples
 
-```jldoctest
+```jldoctest; setup=:(using TransmuteDims)
 julia> A = transmutedims(reshape(1:15,3,5), (3,2,1))  # A is a new Array
 1×5×3 Array{Int64, 3}:
 [:, :, 1] =
