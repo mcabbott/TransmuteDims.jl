@@ -91,8 +91,9 @@ end
 
 #========== copyto! ==========#
 
+# @propagate_inbounds
 function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q}
-    axes(dst) == axes(src) || throw(ArgumentError("arrays must have the same axes for copy! (consider using copyto!"))
+    @boundscheck axes(dst) == axes(src) || throw(ArgumentError("arrays must have the same axes for copy! (consider using copyto!"))
     if increasing_or_zero(P)  # just a reshape
         copyto!(dst, parent(src))
     else
@@ -125,22 +126,7 @@ end
     :(permutedims!($Bex, $Aex, $perm))
 end
 
-# function _densecopy_permuted!(dst::AbstractArray, src::AbstractArray, val::Val{P}) where {P}
-#     if isperm(P)
-#         @info "no reshape"
-#         permutedims!(dst, src, P)
-#     else
-#         perm = filter(!=(0), P)
-#         SB = map(p -> axes(src,p), perm)
-#         # SA = filter(!=(nothing), ntuple(d -> P[d] == 0 ? nothing : axes(src,d), length(P)))
-#         SA = Tuple([axes(src,d) for d in 1:ndims(src) if d in P])
-#         @info "my reshape" # P perm size(src) SA size(dst) SB
-#         permutedims!(reshape(dst, SB), reshape(src, SA), perm)
-#     end
-# end
-
 function _copy_into!(dst::AbstractArray, parent::AbstractArray, ::Val{P}) where {P}
-    @info "fallback copy"
     @inbounds @simd for I in CartesianIndices(parent)
         J = CartesianIndex(map(p -> p==0 ? 1 : I[p], P))
         dst[J] = parent[I]

@@ -532,8 +532,7 @@ end
     elseif may_reshape(AT) && increasing_or_zero(P)
         reshape(data, S)
     else
-        out = similar(data, S)
-        copy!(out, TransmutedDimsArray{T,N,P,Q,AT}(data))
+        copy(TransmutedDimsArray{T,N,P,Q,AT}(data))
     end
 end
 

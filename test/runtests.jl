@@ -208,8 +208,16 @@ end
     @test transmute(t, Val((3,1))) === m
     @test transmute(t, Val((1,3))) === transpose(m)
 
+    @test transmutedims(g, (1,3)) === m
+    @test transmutedims(r, (1,3)) == m
+    @test transmutedims(r, (1,3)) isa Matrix
+    @test transmutedims(t, (3,1)) === m
+    @test transmutedims(t, (1,3)) == transpose(m)
+
+    # errors
     @test_throws ArgumentError transmute(g, (1,2))
     @test_throws ArgumentError transmute(g, Val((1,2)))
+    @test_throws ArgumentError transmutedims(g, (1,2))
 
 end
 @testset "diagonal" begin
@@ -259,6 +267,10 @@ end
     @test TransmutedDimsArray(fill(3), (1,2)) isa AbstractMatrix
     @test TransmutedDimsArray(fill(3), ()) isa AbstractArray{Int,0}
     @test TransmutedDimsArray([3], ()) isa AbstractArray{Int,0}
+
+    @test transmutedims(fill(3), (1,2)) isa Matrix
+    @test transmutedims(fill(3), ()) isa Array{Int,0}
+    @test transmutedims([3], ()) isa Array{Int,0}
 
 end
 @testset "from Base" begin
@@ -389,8 +401,9 @@ else
     end
 end
 
+@info "loading Zygote 🐌"
 using Zygote
-@testset "Zygote" begin
+@testset "Zygote: $transmute" for transmute in [transmute, transmutedims]
     NEW = VERSION >= v"1.6-"
 
     # sizes, and no errors!
@@ -419,7 +432,7 @@ using Zygote
     fwd, back = pullback(x -> transmute(x, (1,1)), v)
     @test fwd == Diagonal(v)
     @test back(m)[1] == diag(m)
-    @test_broken back(m[:,:,:,:])[1] == diag(m)  # trivial extra dimensions, different path
+    @test_skip back(m[:,:,:,:])[1] == diag(m)  # trivial extra dimensions, different path
 
     fwd, back = pullback(x -> transmute(x, (1,1,2)), m)
     @test fwd[:,:,1] == Diagonal(m[:,1])
