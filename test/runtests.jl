@@ -11,9 +11,9 @@ using Test, LinearAlgebra, Random
     @test transmutedims(m, (3,2,1)) == reshape(m', 1,4,3)
     @test transmutedims(transmutedims(m, (3,2,1)), (3,2)) == m
 
-    o314 = rand(3,1,4);
+    o314 = rand(Int, 3,1,4);
     @test transmutedims!(o314, m, (1,0,2)) == reshape(m, 3,1,4)
-    o413 = rand(4,1,3);
+    o413 = rand(Int, 4,1,3);
     @test transmutedims!(o413, m, (2,99,1)) == reshape(permutedims(m), 4,1,3)
     @test o413 == reshape(permutedims(m), 4,1,3)
 
@@ -337,6 +337,21 @@ end
     # @test transmutedims(v) == [1 2 3]
 end
 
+using TransmuteDims: _float_transmutedims  # exists to test permutedims! path
+@testset "sans Strided" begin
+
+    m = rand(1:99, 3,4)
+    @test _float_transmutedims(m, (1,0,2)) == reshape(m, 3,1,4)
+    @test _float_transmutedims(m, (2,99,1)) == reshape(transpose(m), 4,1,3)
+    @test _float_transmutedims(m, (2,nothing,1)) == reshape(permutedims(m), 4,1,3)
+
+    g = transmutedims(m, (1,0,2)) # an Array
+
+    @test _float_transmutedims(g, (3,1)) == m'
+    @test _float_transmutedims(g, (3,0,1)) == transmute(m, (2,0,1))
+
+end
+
 using BenchmarkTools
 @testset "allocations" begin
 
@@ -367,10 +382,18 @@ using OffsetArrays, Random
 
 end
 
+using Strided
+@testset "Strided" begin
+
+    m = rand(1:99, 3,4)
+    @test @strided(transmute(m, (0,2,1)) .+ transmute(m, (1,2,0))) isa StridedView
+
+end
+
 if VERSION < v"1.5"
     @warn "skipping tests of GPUArrays"
 else
-    using GPUArrays
+    using GPUArrays, Adapt
     GPUArrays.allowscalar(false)
 
     jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
@@ -383,20 +406,29 @@ else
         jm = JLArray(m)
         @test_throws Exception jm[1]  # scalar getindex is disallowed
 
-        tjm = TransmutedDimsArray(jm, (2,1))
+        tjm = TransmutedDimsArray(jm, (2,1))  # simple wrapper
         j2 = jm .* log.(tjm) ./ 2
         @test j2 isa JLArray
         @test collect(j2) ≈ m .* log.(m') ./ 2
 
-        jmd = transmute(jm, (1,1,2))
+        jmd = transmute(jm, (1,1,2))  # Diagonal-like
         j3 = jmd .+ 2 .* jmd .+ 1
         @test j3 isa JLArray
         @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
 
+        # printing, without scalar indexing
         @test sprint(show, jm) isa String
         io = IOBuffer()
         Base.print_array(io, jm)
         @test contains(String(take!(io)), string(m[1]))
+
+        @test jm isa DenseArray  # but reshaping it does not preserve this
+        TransmuteDims.may_reshape(::Type{<:JLArray}) = false
+
+        # eager
+        @test transmutedims(jm, (0,1,2)) isa JLArray
+        @test transmutedims(jm, (2,1)) isa JLArray
+        @test_broken transmutedims(jm, (2,0,1)) isa JLArray # permutedims!(dest::Base.ReshapedArray{Float64, 2, JLArray{Float64, 3}, Tuple{}}, src::JLArray{Float64, 2}, perm::Tuple{Int64, Int64})
 
     end
 end

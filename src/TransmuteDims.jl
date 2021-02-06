@@ -536,6 +536,22 @@ end
     end
 end
 
+# This exists for testing, with integer data it calls @generated _densecopy_permuted!
+function _float_transmutedims(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
+    P = sanitise_zero(perm, Val(ndims(data)))
+    N = length(P)
+    Q = invperm_zero(P, size(data))
+    S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
+    if may_reshape(AT) && M == N && P == ntuple(identity, N)
+        data
+    elseif may_reshape(AT) && increasing_or_zero(P)
+        reshape(data, S)
+    else
+        out = similar(data, float(T), S)
+        copy!(out, TransmutedDimsArray{T,N,P,Q,AT}(data))
+    end
+end
+
 """
     transmutedims!(dst, src, perm⁺)
 

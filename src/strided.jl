@@ -35,6 +35,9 @@ end
 
 The eager transmutedims(A, perm) should also use this?
 
+Restricted here to T,T specificaly so that _float_transmutedims(A, perm) can,
+with integer-valued A, test the alternative _densecopy_permuted!() path.
+
 =#
 
 @inline function _densecopy_permuted!(dst::Array{T}, A::StridedArray{T}, ::Val{P}) where {T,P}

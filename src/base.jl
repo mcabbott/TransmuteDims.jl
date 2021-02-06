@@ -117,7 +117,7 @@ end
     end
     if sort(Pminus) == 1:ndims(src)
         Aex = :src
-        perm = Pminus
+        perm = Tuple(Pminus)
     else
         SA = [:(axes(src,$d)) for d in 1:ndims(src) if d in Pminus]
         Aex = :(reshape(src, ($(SA...),)))
