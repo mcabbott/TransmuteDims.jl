@@ -333,7 +333,9 @@ function transmute end
         reshape(data, S)
     elseif M == 2 && P == (2,1) && T<:Number
         transpose(data)
-    elseif P == (1,1)
+    elseif M == 1 && P == (1,1)
+        Diagonal(data)
+    elseif may_reshape(AT) && N == 2 && P[1] == P[2]
         Diagonal(vec(data))
     else
         TransmutedDimsArray{T,length(P),P,Q,AT}(data)
@@ -386,7 +388,7 @@ function _trex(ex, AT, P)
 
     noreshape = if M == 2 && P == (2,1) && T<:Number
         :(transpose($sym))
-    elseif M == 1 && P == (1,1)
+    elseif M == 1 && P == (1,1) # "may_reshape(AT) && N == 2 && P[1] == P[2]" will be messy.
         :(Diagonal($sym))
     else
         :(TransmutedDimsArray{$T,$(length(P)),$P,$Q,$AT}($sym))
@@ -487,13 +489,19 @@ julia> B = transmutedims(A, (2,3))  # drop A's first, trivial, dimension
 julia> C = transmutedims(adjoint(B), (2,1,0)); summary(C)  # un-wraps adjoint
 "5×3×1 Array{Int64, 3}"
 
-julia> B[5,3] = 503;  # B and C are reshaped views of A
+julia> D = transmutedims(adjoint(B), (1,0,2)); summary(D)  # unwraps, then permutes
+"3×1×5 Array{Int64, 3}"
+
+julia> B[5,3] = 5030;  # B and C are reshaped views of A
 
 julia> A[1,5,3]
-503
+5030
 
 julia> C[5,3,1]
-503
+5030
+
+julia> D[3,1,5]  # but D is not, it required a copy
+15
 ```
 """
 @inline function transmutedims(data::AbstractArray, perm)

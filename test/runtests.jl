@@ -51,7 +51,7 @@ end
     @test m[3,2] == 333
 
     # linear indexing
-    @test_skip Base.IndexStyle(g) == IndexLinear() # perhaps we don't want this
+    @test_skip Base.IndexStyle(g) == IndexLinear() # perhaps don't want this, transmute() avoids it
     @test Base.IndexStyle(t) == IndexCartesian()
     g[4] = 444
     @test m[4] == 444
@@ -61,7 +61,7 @@ end
     # linear indexing, for more constructors
     y = zeros(1,2,3);
     @test IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear() # it's an Array
-    @test_skip IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear()
+    @test_broken IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear() # perhaps not.
     @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
     @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
 
@@ -233,8 +233,8 @@ end
 
     # dropdims
     @test transmute(rand(3,1), (1,1)) isa Diagonal
-    @test_broken transmute(rand(3,1), Val((1,1))) isa Diagonal
-    @test_broken transmute(rand(1,3), (2,2)) isa Diagonal
+    @test_broken transmute(rand(3,1), Val((1,1))) isa Diagonal  # not worth the hassle
+    @test transmute(rand(1,3), (2,2)) isa Diagonal
     @test_throws Exception transmute(rand(3,2), (1,1))
 
 end
