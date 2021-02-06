@@ -550,8 +550,10 @@ end
 
 include("base.jl")
 
-include("gpu.jl") # this takes loading from 0.4s to 1.5s :(
+include("strided.jl") # this costs about 0.1s
 
-include("chainrules.jl")
+include("chainrules.jl") # this costs about 0.2s
+
+include("gpu.jl") # this costs just over a second
 
 end
