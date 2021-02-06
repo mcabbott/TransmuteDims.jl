@@ -123,7 +123,7 @@ end
         Aex = :(reshape(src, ($(SA...),)))
         perm = Tuple(sortperm(Pminus))
     end
-    :(permutedims!($Bex, $Aex, $perm))
+    :(permutedims!($Bex, $Aex, $perm); nothing)
 end
 
 function _copy_into!(dst::AbstractArray, parent::AbstractArray, ::Val{P}) where {P}

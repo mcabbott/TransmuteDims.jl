@@ -187,7 +187,7 @@ julia> @btime copyto!($M3, $(transpose(M2)));
 julia> @btime copyto!($M3, $(PermutedDimsArray(M2, (2,1)))); # same with M3 .=
   3.361 ms (0 allocations: 0 bytes)
 
-julia> @btime transmutedims!($M3, $M2, (2,1)); # hmm
+julia> @btime transmutedims!($M3, $M2, (2,1));
   2.647 ms (0 allocations: 0 bytes)
 
 julia> @btime copyto!($M3, $(TransmutedDimsArray(M2, (2,1))));

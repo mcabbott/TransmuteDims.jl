@@ -37,14 +37,15 @@ The eager transmutedims(A, perm) should also use this?
 
 =#
 
-@inline function _densecopy_permuted!(dst::Array{T}, A::StridedArray{TA}, ::Val{P}) where {T,TA,P}
+@inline function _densecopy_permuted!(dst::Array{T}, A::StridedArray{T}, ::Val{P}) where {T,P}
     sz = map(d -> d==0 ? 1 : size(A,d), P)
     st = map(d -> d==0 ? 0 : stride(A,d), P)
-    if isbitstype(T) && isbitstype(TA)
+    if isbitstype(T)
         _A = UnsafeStridedView(pointer(A), sz, st, 0, identity)
         _B = UnsafeStridedView(pointer(dst), size(dst), strides(dst), 0, identity)
         _densecopy_strided!(_B, _A)
     else
+        # This path may be slower than the default one. Not really tested, either.
         _densecopy_strided!(dst, StridedView(A, sz, st, 0, identity))
     end
     nothing
@@ -54,14 +55,3 @@ end
     T = eltype(dst)
     LinearAlgebra.axpby!(one(T), src, zero(T), dst)
 end
-
-
-#         if isbitstype(eltype(A)) && isbitstype(eltype(C))
-#             @unsafe_strided A C _add!(α, A, β, C, (indCinA...,))
-#         else
-#             _add!(α, StridedView(A), β, StridedView(C), (indCinA...,))
-#         end
-
-# _add!(α, A::AbstractStridedView{<:Any,N},
-#         β, C::AbstractStridedView{<:Any,N}, indCinA::IndexTuple{N}) where N =
-#     LinearAlgebra.axpby!(α, permutedims(A, indCinA), β, C)
