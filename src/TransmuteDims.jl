@@ -536,6 +536,22 @@ end
     end
 end
 
+# This exists for testing, with integer data it calls @generated _densecopy_permuted!
+function _float_transmutedims(data::AT, perm) where {AT <: AbstractArray{T,M}} where {T,M}
+    P = sanitise_zero(perm, Val(ndims(data)))
+    N = length(P)
+    Q = invperm_zero(P, size(data))
+    S = map(d -> d==0 ? Base.OneTo(1) : axes(data,d), P)
+    if may_reshape(AT) && M == N && P == ntuple(identity, N)
+        data
+    elseif may_reshape(AT) && increasing_or_zero(P)
+        reshape(data, S)
+    else
+        out = similar(data, float(T), S)
+        copy!(out, TransmutedDimsArray{T,N,P,Q,AT}(data))
+    end
+end
+
 """
     transmutedims!(dst, src, perm⁺)
 
@@ -550,8 +566,10 @@ end
 
 include("base.jl")
 
-include("gpu.jl") # this takes loading from 0.4s to 1.5s :(
+include("strided.jl") # this costs about 0.1s
 
-include("chainrules.jl")
+include("chainrules.jl") # this costs about 0.2s
+
+include("gpu.jl") # this costs just over a second
 
 end

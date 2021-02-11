@@ -48,7 +48,7 @@ transmute(Diagonal(rand(10)), (3,1)) isa Matrix
 ```
 
 Calling the constructor directly `TransmutedDimsArray(A, (3,2,0,1))` simply applies the wrapper. 
-There is also a variant `transmute(A, Val((3,2,0,1)))` which works out any un-wrapping at compile-time:
+There is also a method `transmute(A, Val((3,2,0,1)))` which works out any un-wrapping at compile-time:
 
 ```julia
 using BenchmarkTools
@@ -60,4 +60,13 @@ using BenchmarkTools
 @btime reshape($A, (10,20,1,30));        #  34.479 ns (1 allocation: 80 bytes)
 ```
 
-There was going to be an eager variant `transmutedims(A, (3,2,0,1))` but for now that's absent.
+Finally, there is also an eager variant, which tries always to return a `DenseArray`, copying data if necessary. 
+It uses [Strided.jl](https://github.com/Jutho/Strided.jl) to speed this up, when possible, so should be faster than Base's `permutedims`:
+
+```julia
+transmutedims(A, (3,2,0,1)) isa Array{Float64, 4}
+transmutedims(1:3, (2,1)) isa Matrix
+
+@btime transmutedims($(rand(40,50,60)), (3,2,1));  #  57.365 μs (61 allocations: 944.62 KiB)
+@btime permutedims($(rand(40,50,60)), (3,2,1));    # 172.643 μs (2 allocations: 937.58 KiB)
+```
