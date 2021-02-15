@@ -148,4 +148,32 @@ function Base.copyto!(dst::AbstractArray, src::TransmutedDimsArray)
     dst
 end
 
+#========== view ==========#
+
+function Base.view(A::TransmutedDimsArray{T,N,P,Q}, inds::Vararg{Union{Int,Colon},N}) where {T,N,P,Q}
+    if _is_simple(inds, P)
+        parent_inds = genperm_zero(inds, Q, missing)
+        view(parent(A), parent_inds...)
+    else
+        view(A, Base.to_indices(A, inds)...)
+    end
+end
+
+# Only allow one colon, and P there is not zero
+@inline function _is_simple(inds::Tuple, P::NTuple{N,Int}) where {N}
+    sum(map(i -> Int(i isa Colon), inds)) == 1 || return false
+    n = sum(ntuple(d -> inds[d] isa Colon ? d : 0, N))
+    return P[n] != 0
+end
+# @btime TransmuteDims._is_simple((1,2,:,3), (1,0,2,3)) # 0.041 ns
+
+
+# @inline function _is_simple(inds, P::Tuple)
+#     count(i -> i isa Colon, inds) == 1 || return false
+#     n = findfirst(i -> i isa Colon, inds)
+#     return P[n] != 0
+# end
+# @btime _is_simple((1,2,:,3), (1,0,2,3)) # 58.365 ns
+
+
 #========== the end. ==========#

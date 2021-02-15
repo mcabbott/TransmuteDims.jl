@@ -138,6 +138,26 @@ end
     @test adjoint(TransmutedDimsArray(v, (0,1))) isa Matrix
 
 end
+@testset "view" begin
+
+    m = rand(1:99, 3,4)
+    g = TransmutedDimsArray(m, (1,0,2)) # could be an Array
+    t = transmute(m, (2,0,1))
+
+    @test view(g, :,1,2) isa SubArray{Int64, 1, <:Matrix}
+    @test view(g, :,1,2) == g[:,1,2]
+
+    @test view(t, :,1,2) isa SubArray{Int64, 1, <:Matrix}
+    @test view(t, :,1,2) == t[:,1,2]
+    @test view(t, 2,1,:) == t[2,1,:]
+
+    @test first(eachcol(TransmutedDimsArray(m,(2,1)))) isa SubArray{Int64, 1, <:Matrix}
+
+    # not unwrapped
+    @test view(t, :,1,:) == m'
+    @test view(t, 2,:,3) == t[2,:,3]
+
+end
 @testset "reductions" begin
 
     m = rand(1:99, 3,4)
