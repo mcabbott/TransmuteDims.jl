@@ -470,8 +470,9 @@ else
     end
 end
 
-@info "loading Zygote 🐌"
+print("🐌 loading Zygote... ")
 using Zygote
+println("done")
 @testset "Zygote: $func" for func in [transmute, transmutedims]
     NEW = VERSION >= v"1.6-"
 
@@ -512,6 +513,7 @@ end
 if VERSION < v"1.6-"
     @warn "skipping doctests, on Julia $VERSION"
 else
+    print("🗣 starting Documenter")
     using Documenter
     @testset "doctests" begin
 
