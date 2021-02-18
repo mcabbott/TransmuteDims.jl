@@ -23,7 +23,7 @@ This is just like `PermutedDimsArray`, except that `perm⁺` need not be a permu
 
 By calling the type directly you get the simplest constructor.
 Calling instead [`transmute(A, perm⁺)`](@ref) gives one which un-wraps nested objects,
-picks simpler alternatives, etc.
+picks simpler alternatives, etc. And [`transmutedims(A, perm⁺)`](@ref) is the eager version.
 
 # Examples
 
@@ -419,7 +419,7 @@ function invperm_zero(P::NTuple{N,Int}, M::Int, sym::Symbol) where {N}
     checks = []
     Q = ntuple(M) do d
         w = ntuple(n -> P[n]==d ? n : 0, N)
-        str = "dimension $d is missing from trasmutation $P, which is not allowed when size(A, $d) = != 1"
+        str = "dimension $d is missing from transmutation $P, which is not allowed when size(A, $d) = != 1"
         x = max_zero(w...)
         x >= 1 || push!(checks, quote
             size($sym,$d)==1 || throw(ArgumentError($str))
@@ -460,7 +460,7 @@ but is not guaranteed to copy the data.
 
 Like `transmute`, it knows to un-wrap `PermutedDimsArray`, `Transpose{<:Number}`, etc.
 
-Like both `transmute` and `TransmutedDimsArray`, it accepts in addition to perturbations,
+Like both `transmute` and [`TransmutedDimsArray`](@ref), it accepts in addition to perturbations,
 values outside `1:ndims(A)` (which insert trivial dimensions), omitted values
 (which like `dropdims` must be dimensions of size 1), and repeated values (which generalise `diagm`).
 
