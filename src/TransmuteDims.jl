@@ -175,8 +175,7 @@ end
 @inline increasing_or_zero(::Tuple{}, prev=0) = true
 
 @inline function unique_or_zero(P::Tuple)
-    first(P) == 0 && return true
-    first(P) in Base.tail(P) && return false
+    first(P) != 0 && first(P) in Base.tail(P) && return false
     return unique_or_zero(Base.tail(P))
 end
 @inline unique_or_zero(P::Tuple{}) = true

@@ -1,6 +1,25 @@
 using TransmuteDims
 using Test, LinearAlgebra, Random
 
+@testset "utils" begin
+
+    using TransmuteDims: sanitise_zero, genperm_zero, invperm_zero, is_off_diag
+
+    @test sanitise_zero((1,2,3), Val(2)) === (1,2,0)
+    @test sanitise_zero([1,2,nothing,4], Val(3)) === (1,2,0,0)
+
+    using TransmuteDims: increasing_or_zero, unique_or_zero
+
+    @test increasing_or_zero((1,2,0,3)) == true
+    @test increasing_or_zero((1,2,0,2)) == false
+
+    @test unique_or_zero((1,3,0,2)) == true
+    @test unique_or_zero((0,1,3)) == true
+    @test unique_or_zero((0,1,0,3,0)) == true
+    @test unique_or_zero((0,1,1)) == false
+    @test unique_or_zero((0,1,2,0,2)) == false
+
+end
 @testset "eager" begin
 
     m = rand(1:99, 3,4)
