@@ -286,9 +286,9 @@ end
 
     # dropdims
     @test transmute(rand(3,1), (1,1)) isa Diagonal
-    @test_broken transmute(rand(3,1), Val((1,1))) isa Diagonal  # not worth the hassle
     @test transmute(rand(1,3), (2,2)) isa Diagonal
     @test_throws Exception transmute(rand(3,2), (1,1))
+    @test transmute(rand(3,1), Val((1,1))) isa TransmutedDimsArray{Float64, 2, (1,1), (2,0)}
 
 end
 @testset "zero dims" begin
