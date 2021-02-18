@@ -59,7 +59,6 @@ end
     @test m[3,2] == 333
 
     # linear indexing
-    @test_skip Base.IndexStyle(g) == IndexLinear() # perhaps don't want this, transmute() avoids it
     @test Base.IndexStyle(t) == IndexCartesian()
     g[4] = 444
     @test m[4] == 444
@@ -69,7 +68,6 @@ end
     # linear indexing, for more constructors
     y = zeros(1,2,3);
     @test IndexStyle(transmute(y, (1,0,2,0,3))) == IndexLinear() # it's an Array
-    @test_broken IndexStyle(TransmutedDimsArray(y, (1,0,2,0,3))) == IndexLinear() # perhaps not.
     @test IndexStyle(transmute(y, (3,0,2,0,1))) == IndexCartesian()
     @test IndexStyle(TransmutedDimsArray(y, (3,0,2,0,1))) == IndexCartesian()
 

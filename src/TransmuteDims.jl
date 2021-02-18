@@ -100,15 +100,6 @@ Base.dataids(A::TransmutedDimsArray) = Base.dataids(A.parent)
 
 Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
 
-# # The cases in which linear indexing would be desirable are those in which transmute() just reshapes.
-# function Base.IndexStyle(::Type{TT}) where {TT<:TransmutedDimsArray{T,N,P,Q,AT}} where {T,N,P,Q,AT}
-#     if IndexStyle(AT) === IndexLinear() && increasing_or_zero(Val(P))
-#         IndexLinear()
-#     else
-#         IndexCartesian()
-#     end
-# end
-
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
     val = @inbounds getindex(A.parent, genperm_zero(I, iperm)...)
@@ -118,12 +109,6 @@ Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
         ifelse(is_off_diag(Val(perm), I), zero(T), val)
     end
 end
-
-# @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, i::Int) where {T,N,perm,iperm}
-#     @boundscheck checkbounds(A, i)
-#     if IndexStyle(A) == IndexLinear() || @warn "wtf"
-#     val = @inbounds getindex(A.parent, i)
-# end
 
 @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
@@ -135,13 +120,6 @@ end
     end
     val
 end
-
-# @inline function Base.setindex!(A::TransmutedDimsArray{T,N,perm,iperm}, val, i::Int) where {T,N,perm,iperm}
-#     @boundscheck checkbounds(A, i)
-#     IndexStyle(A) == IndexLinear() || @warn "wtf"
-#     @inbounds setindex!(A.parent, val, i)
-#     val
-# end
 
 # # Not entirely sure this is a good idea, but passing KW along...
 # Base.@propagate_inbounds Base.getindex(A::TransmutedDimsArray; kw...) =
