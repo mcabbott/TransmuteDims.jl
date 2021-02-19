@@ -16,7 +16,7 @@ using Test, LinearAlgebra, Random
     @test invperm_zero((1,2,3),4,:A)[1] == (1,2,3,0)
     @test invperm_zero((1,3),4,:A)[2][2] isa Expr  # two assertions, size(A,2)==1 && size(A,4)==1
 
-    using TransmuteDims: increasing_or_zero, unique_or_zero
+    using TransmuteDims: increasing_or_zero, unique_or_zero, may_reshape
 
     @test increasing_or_zero((1,2,0,3)) == true
     @test increasing_or_zero((1,2,0,2)) == false
@@ -26,6 +26,10 @@ using Test, LinearAlgebra, Random
     @test unique_or_zero((0,1,0,3,0)) == true
     @test unique_or_zero((0,1,1)) == false
     @test unique_or_zero((0,1,2,0,2)) == false
+
+    @test may_reshape(typeof(rand(3))) == true
+    @test may_reshape(typeof(rand(3)')) == false
+    @test may_reshape(typeof(reshape(1:4,2,2))) == true
 
 end
 @testset "eager" begin
@@ -103,6 +107,7 @@ end
     # reshape
     @test vec(TransmutedDimsArray(m, (1,0,2))) isa Vector
     @test vec(TransmutedDimsArray(m, (2,0,1))) isa Base.ReshapedArray
+    @test transmute(reshape(1:6, 2,3), (1,0,2)) isa Base.ReshapedArray
 
     # errors
     @test_throws ArgumentError transmute(m, (2,))

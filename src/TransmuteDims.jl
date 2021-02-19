@@ -226,6 +226,7 @@ getinvperm(A::PermutedDimsArray{T,N,P,Q}) where {T,N,P,Q} = Q
 
 may_reshape(::Type) = false
 may_reshape(::Type{<:DenseArray}) = true
+may_reshape(::Type{<:Base.ReshapedArray}) = true
 
 #========== New constructor transmute() ==========#
 
@@ -239,7 +240,8 @@ Gives a result `== TransmutedDimsArray(A, perm⁺)`, but:
   it will un-wrap this, and adjust `perm⁺` to work directly on `parent(A)`.
 
 * When the permutation simply inserts or removes a trivial dimension, it prefers to `reshape`
-  instead of wrapping. This is controlled by `may_reshape(::Type)`, by default true for `DenseArray`s.
+  instead of wrapping. This is controlled by `may_reshape(::Type)`, by default true for
+  `DenseArray`s and `ReshapedArray`s.
 
 * When possible, it prefers to create a `Transpose` or `Diagonal`, instead of a `TransmutedDimsArray`.
 
