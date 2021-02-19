@@ -8,6 +8,14 @@ using Test, LinearAlgebra, Random
     @test sanitise_zero((1,2,3), Val(2)) === (1,2,0)
     @test sanitise_zero([1,2,nothing,4], Val(3)) === (1,2,0,0)
 
+    @test genperm_zero((:a,:b,:c,:d), (3,2,4,1)) == Base.PermutedDimsArrays.genperm((:a,:b,:c,:d), (3,2,4,1))
+    @test genperm_zero((:a,:b,:c,:d), (3,0,4,1)) == (:c, 1, :d, :a)
+    @test genperm_zero((:a,:b,:c,:d), (3,0,4,1), :z) == (:c, :z, :d, :a)
+
+    @test invperm_zero((5,1,3,4,2),5,:A)[1] == invperm((5,1,3,4,2))
+    @test invperm_zero((1,2,3),4,:A)[1] == (1,2,3,0)
+    @test invperm_zero((1,3),4,:A)[2][2] isa Expr  # two assertions, size(A,2)==1 && size(A,4)==1
+
     using TransmuteDims: increasing_or_zero, unique_or_zero
 
     @test increasing_or_zero((1,2,0,3)) == true
