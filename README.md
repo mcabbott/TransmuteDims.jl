@@ -2,36 +2,38 @@
 
 [![Build Status](https://github.com/mcabbott/TransmuteDims.jl/workflows/CI/badge.svg)](https://github.com/mcabbott/TransmuteDims.jl/actions)
 
-This package provides a generalisation of Julia's `PermutedDimsArray`, which allows things other than permutations.
+This package provides generalisations of Julia's `permutedims` function and `PermutedDimsArray` wrapper, which allow things other than permutations. These can replace `dropdims` and many uses of `reshape`.
 
-First, arrays may be thought of as having trivial dimensions beyond `ndims(A)`, which can be re-positioned like this:
+The first generalisation is that you may introduce trivial dimensions. This can be thought of as re-positioning the implicit trivial dimensions beyond `ndims(A)`, such as the 4th and 5th dimensions here:
 
 ```julia
 A = ones(10,20,30);
-ntuple(d -> size(A,d), 5)         # (10, 20, 30, 1, 1)
+ntuple(d -> size(A,d), 5)          # (10, 20, 30, 1, 1)
 
-permutedims(A, (2,3,1)) |> size   # (20, 30, 10)
+permutedims(A, (2,3,1)) |> size    # (20, 30, 10)
 
 using TransmuteDims
-transmute(A, (4,2,3,5,1)) |> size # (1, 20, 30, 1, 10)
+transmute(A, (4,2,3,5,1)) |> size  # (1, 20, 30, 1, 10)
 ```
 
 Here `(4,2,3,5,1)` is a valid permutation of `1:5`, but the positions of `4,5` don't matter, so in fact this is normalised to `(0,2,3,0,1)`. Zeros indicate trivial output dimensions.
 
-Second, trivial input dimensions below `ndims(A)` may also be omitted:
+Second, input dimensions below `ndims(A)` may also be omitted, provided they are of size 1:
 
 ```julia
-A2 = sum(A, dims=2); size(A2)     # (10, 1, 30)
-transmute(A2, (3,1)) |> size      # (30, 10)
+A2 = sum(A, dims=2); size(A2)      # (10, 1, 30)
+transmute(A2, (3,1)) |> size       # (30, 10)
+
+try transmute(A, (3,1)) catch err; err end  # ArgumentError, "... not allowed when size(A, 2) = 20"
 ```
 
 Finally, you may also repeat numbers, to place an input dimension "diagonally" into several output dimensions:
 
 ```julia
 using LinearAlgebra
-transmute(1:10, (1,1)) == Diagonal(1:10) # true
+transmute(1:10, (1,1)) == Diagonal(1:10)  # true
 
-transmute(A, (2,2,0,3,1)) |> size # (20, 20, 1, 30, 10)
+transmute(A, (2,2,0,3,1)) |> size  # (20, 20, 1, 30, 10)
 ```
 
 The function `transmute` is always lazy, but also tries to minimise the number of wrappers. Ideally to none at all, by un-wrapping and reshaping:
@@ -60,7 +62,8 @@ using BenchmarkTools
 @btime reshape($A, (10,20,1,30));        #  34.479 ns (1 allocation: 80 bytes)
 ```
 
-Finally, there is also an eager variant, which tries always to return a `DenseArray`, copying data if necessary. 
+Finally, there is also an eager variant, which tries always to return a `DenseArray`. 
+This will similarly un-wrap `Transpose` etc, and prefers to reshape if possible, copying data only when necessary. 
 It uses [Strided.jl](https://github.com/Jutho/Strided.jl) to speed this up, when possible, so should be faster than Base's `permutedims`:
 
 ```julia
@@ -69,4 +72,9 @@ transmutedims(1:3, (2,1)) isa Matrix
 
 @btime transmutedims($(rand(40,50,60)), (3,2,1));  #  57.365 μs (61 allocations: 944.62 KiB)
 @btime permutedims($(rand(40,50,60)), (3,2,1));    # 172.643 μs (2 allocations: 937.58 KiB)
+
+@strided(transmute(A, (3,2,0,1))) isa StridedView{Float64, 4}
+@strided(transmutedims(A, (3,2,0,1))) isa StridedView{Float64, 4}
 ```
+
+The `StridedView` type is general enough to allow the insertion/removal of trivial dimensions, in addition to permutations.
