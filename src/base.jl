@@ -91,6 +91,19 @@ end
 
 #========== copyto! ==========#
 
+function Base.copyto!(dst::AbstractArray, src::TransmutedDimsArray)
+    if axes(dst) == axes(src)
+        copy!(dst, src)
+    elseif length(dst) == length(src)
+        copy!(reshape(dst, axes(src)), src)  # could save a reshape when increasing_or_zero(P)
+    elseif length(dst) < length(src)
+        throw(BoundsError(dst, lastindex(src)))
+    else
+        throw(BoundsError(src, lastindex(dst)))
+    end
+    dst
+end
+
 # @propagate_inbounds
 function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where {T,N,P,Q}
     @boundscheck axes(dst) == axes(src) || throw(ArgumentError("arrays must have the same axes for copy! (consider using copyto!"))
@@ -99,6 +112,7 @@ function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where
     else
         if unique_or_zero(P)
             _densecopy_permuted!(dst, parent(src), Val(P))
+            # this is happy to reshape... should it be limited to
         else
             fill!(dst, zero(T))  # Diagonal-like
             _copy_into!(dst, parent(src), Val(P))
@@ -107,8 +121,8 @@ function Base.copy!(dst::AbstractArray, src::TransmutedDimsArray{T,N,P,Q}) where
     dst
 end
 
-# For Arrays, this dispatches to use Strided.jl version
-@generated function _densecopy_permuted!(dst::AbstractArray, src::AbstractArray, val::Val{P}) where {P}
+# For Arrays, this dispatches to use Strided.jl version. Second best:
+@generated function _densecopy_permuted!(dst::DenseArray, src::AbstractArray, val::Val{P}) where {P}
     Pminus = filter(!=(0), collect(P))
     if 0 in P
         SB = [:(axes(src,$p)) for p in Pminus]
@@ -127,6 +141,10 @@ end
     :(permutedims!($Bex, $Aex, $perm); nothing)
 end
 
+# Fallback option:
+_densecopy_permuted!(dst::AbstractArray, src::AbstractArray, val::Val) =
+    _copy_into!(dst, src, val)
+
 function _copy_into!(dst::AbstractArray, parent::AbstractArray, ::Val{P}) where {P}
     @inbounds @simd for I in CartesianIndices(parent)
         J = CartesianIndex(map(p -> p==0 ? 1 : I[p], P))
@@ -135,18 +153,6 @@ function _copy_into!(dst::AbstractArray, parent::AbstractArray, ::Val{P}) where 
     nothing
 end
 
-function Base.copyto!(dst::AbstractArray, src::TransmutedDimsArray)
-    if axes(dst) == axes(src)
-        copy!(dst, src)
-    elseif length(dst) == length(src)
-        copy!(reshape(dst, axes(src)), src)  # could save a reshape when increasing_or_zero(P)
-    elseif length(dst) < length(src)
-        throw(BoundsError(dst, lastindex(src)))
-    else
-        throw(BoundsError(src, lastindex(dst)))
-    end
-    dst
-end
 
 #========== view ==========#
 
