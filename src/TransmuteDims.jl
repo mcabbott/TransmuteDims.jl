@@ -102,7 +102,7 @@ Base.unaliascopy(A::TransmutedDimsArray) = typeof(A)(Base.unaliascopy(A.parent))
 
 @inline function Base.getindex(A::TransmutedDimsArray{T,N,perm,iperm}, I::Vararg{Int,N}) where {T,N,perm,iperm}
     @boundscheck checkbounds(A, I...)
-    val = @inbounds getindex(A.parent, genperm_zero(I, iperm)...)
+    val = @inbounds getindex(A.parent, genperm_zero(I, iperm, FirstIndex())...)
     if unique_or_zero(Val(perm))
         val
     else
@@ -116,7 +116,7 @@ end
         iszero(val) || throw(ArgumentError(
             "cannot set off-diagonal entry $I to a nonzero value ($val)"))
     else
-        @inbounds setindex!(A.parent, val, genperm_zero(I, iperm)...)
+        @inbounds setindex!(A.parent, val, genperm_zero(I, iperm, FirstIndex())...)
     end
     val
 end
@@ -126,6 +126,16 @@ end
 #     getindex(A.parent; kw...)
 # Base.@propagate_inbounds Base.setindex!(A::TransmutedDimsArray, val; kw...) =
 #     setindex!(A.parent, val; kw...)
+
+struct FirstIndex end
+
+function Base.to_indices(A, tup, I::Tuple{FirstIndex, Vararg{Any}})
+    if isempty(tup)
+        (1, Base.to_indices(A, (), Base.tail(I))...)
+    else
+        (first(first(tup)), Base.to_indices(A, Base.tail(tup), Base.tail(I))...)
+    end
+end
 
 #========== Utils ==========#
 
