@@ -430,11 +430,11 @@ using OffsetArrays, Random
 
     @test transmute(o34, (2,0,1))[21, 1, 13] == o34[13, 21]
 
-    # dropdims: there was a bug, https://github.com/mcabbott/TransmuteDims.jl/issues/24
+    # dropdims
     @test axes(transmute(sum(o34, dims = 1), (2,))) == (21:24,)
-    @test all(==(3), transmute(sum(o34, dims = 1), (2,)))
-
-    @test_broken transmute(sum(o34, dims = 1), (2,)) isa OffsetArray
+    @test_broken transmute(sum(o34, dims = 1), (2,)) isa OffsetArray # issue 23
+    o34 .= 1
+    @test all(==(3), transmute(sum(o34, dims = 1), (2,))) # issue 24
 
 end
 
