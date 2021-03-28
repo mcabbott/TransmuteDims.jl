@@ -1,6 +1,6 @@
 #========== GPU etc ==========#
 
-using GPUArrays
+using .GPUArrays
 # https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/host/broadcast.jl
 
 using Base.Broadcast
