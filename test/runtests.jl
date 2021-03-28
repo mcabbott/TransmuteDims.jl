@@ -434,6 +434,8 @@ using OffsetArrays, Random
     @test axes(transmute(sum(o34, dims = 1), (2,))) == (21:24,)
     @test all(==(3), transmute(sum(o34, dims = 1), (2,)))
 
+    @test_broken transmute(sum(o34, dims = 1), (2,)) isa OffsetArray
+
 end
 
 using Strided
