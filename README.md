@@ -27,7 +27,7 @@ transmute(A2, (3,1)) |> size       # (30, 10)
 try transmute(A, (3,1)) catch err; err end  # ArgumentError, "... not allowed when size(A, 2) = 20"
 ```
 
-Finally, you may also repeat numbers, to place an input dimension "diagonally" into several output dimensions:
+Third, you may also repeat numbers, to place an input dimension "diagonally" into several output dimensions:
 
 ```julia
 using LinearAlgebra
@@ -77,4 +77,11 @@ transmutedims(1:3, (2,1)) isa Matrix
 @strided(transmutedims(A, (3,2,0,1))) isa StridedView{Float64, 4}
 ```
 
-The `StridedView` type is general enough to allow the insertion/removal of trivial dimensions, in addition to permutations.
+The `StridedView` type is general enough to allow the insertion/removal of trivial dimensions, in addition to permutations, so these functions preserve it.
+
+The lower-case functions also treat tuples as if they were vectors:
+
+```julia
+transmute((1,2,3), (1,)) isa AbstractVector
+transmutedims((1,2,3), (nothing,1)) isa Matrix
+```

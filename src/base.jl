@@ -1,3 +1,33 @@
+#========== tuples ==========#
+
+struct TupleVector{T,DT,L} <: AbstractVector{T}
+    data::DT
+    TupleVector(tup::DT) where {DT <: Tuple} =
+        new{mapreduce(typeof, Base.promote_typejoin, tup), DT, length(tup)}(tup)
+end
+
+Base.size(v::TupleVector{T,DT,L}) where {T,DT,L} = (L,)
+Base.@propagate_inbounds Base.getindex(v::TupleVector, i::Integer) = getindex(v.data, i)
+
+Core.Tuple(v::TupleVector) = v.data
+Base.iterate(v::TupleVector) = iterate(v.data)
+Base.iterate(v::TupleVector, state) = iterate(v.data, state)
+
+transmute(tup::Tuple, perm) = transmute(TupleVector(tup), perm)
+transmute(tup::Tuple, ::Val{perm}) where {perm} = transmute(TupleVector(tup), Val(perm))
+
+transmutedims(tup::Tuple, perm=(2,1)) = collect(transmute(tup, perm))
+
+function Base.showarg(io::IO, v::TupleVector{T,DT}, toplevel) where {T,DT}
+    if all(==(T), DT.parameters)
+        toplevel || print(io, "::")
+        print(io, "TupleVector{", T, "}")
+    else
+        print(io, "TupleVector(::", DT, ")")
+        toplevel && print(io, " with eltype ", T)
+    end
+end
+
 #========== dropdims ==========#
 
 # Especially when dropping a trivial dimension, we don't want to produce

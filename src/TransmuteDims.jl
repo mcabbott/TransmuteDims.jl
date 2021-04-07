@@ -1,6 +1,6 @@
 module TransmuteDims
 
-export TransmutedDimsArray, transmute, transmutedims, transmutedims!
+export TransmutedDimsArray, transmute, transmutedims, transmutedims!, TupleVector
 
 #========== alla PermutedDimsArrays, mostly ==========#
 
@@ -299,6 +299,10 @@ false
 
 julia> TransmuteDims.may_reshape(typeof(B))
 true
+
+julia> transmute(('α', "β", :γ), (2,1))  # accepts tuples, too
+1×3 transmute(TupleVector(::Tuple{Char, String, Symbol}), (0, 1)) with eltype Any:
+ 'α'  "β"  :γ
 ```
 """
 function transmute end
@@ -492,9 +496,9 @@ julia> C[5,3,1]
 julia> D[3,1,5]  # but D is not, it required a copy
 15
 
-julia> transmutedims(1:3)  # default perm = (0,1) for vectors
-1×3 Matrix{Int64}:
- 1  2  3
+julia> transmutedims((1, 2, 3.0, 4+5im))  # default perm = (0,1) for vectors (and tuples)
+1×4 Matrix{Number}:
+ 1  2  3.0  4+5im
 
 julia> transmutedims(B)  # default perm = (2,1) for matrices
 3×5 Matrix{Int64}:

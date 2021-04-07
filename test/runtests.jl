@@ -323,6 +323,26 @@ end
     @test transmutedims([3], ()) isa Array{Int,0}
 
 end
+@testset "tuples" begin
+
+    @test transmute((1,2,3), (2,1)) == [1 2 3]
+    @test transmute((1,2,3), (1,1)) == Diagonal(1:3)
+
+    @test transmute((1,2,3), (1,)) isa AbstractVector  # always wraps
+    @test transmute((1,2,3), (1,nothing)) isa AbstractMatrix
+    @test transmute(transmute((1,2,3), (2,1)), (2,)) isa TupleVector  # unwraps once
+
+    # eager
+    @test transmutedims((1,2,3), (2,1)) == [1 2 3]
+    @test transmutedims((1,2,3)) == [1 2 3]
+    @test transmutedims((1,2,3), (1,1)) isa Matrix
+
+    # promotion
+    @test eltype(transmute((1,2,3.0),(2,1)) .+ [1 2 3]) == eltype((1,2,3.0) .+ [1,2,3]) # Real
+    @test eltype(transmute((1,2,3+im),(2,1)) .+ [1 2 3]) == eltype((1,2,3+im) .+ [1,2,3]) # Number
+    @test transmutedims((1,2,3.0)) isa Matrix{Real}
+
+end
 @testset "from Base" begin
 
     # keeps the num of dim
