@@ -1,6 +1,7 @@
 # TransmuteDims.jl
 
 [![Build Status](https://github.com/mcabbott/TransmuteDims.jl/workflows/CI/badge.svg)](https://github.com/mcabbott/TransmuteDims.jl/actions)
+[![Docstrings](https://img.shields.io/badge/docs-juliahub-blue?labelColor=333)](https://juliahub.com/docs/TransmuteDims/)
 
 This package provides generalisations of Julia's `permutedims` function and `PermutedDimsArray` wrapper, which allow things other than permutations. These can replace `dropdims` and many uses of `reshape`.
 
