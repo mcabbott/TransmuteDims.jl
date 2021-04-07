@@ -177,7 +177,7 @@ end
     Expr(:call, :|, out...)
 end
 
-@inline function increasing_or_zero(tup::Tuple, prev=0)  # strictly increasing!
+@inline function increasing_or_zero(tup::Tuple, prev=0)  # strictly increasing! hence a reshape
     d = first(tup)
     (d != 0) & (d <= prev) && return false
     return increasing_or_zero(Base.tail(tup), max(d, prev))
@@ -564,6 +564,11 @@ using Requires # without loading anything, this costs about 0.1s
 @init @require GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7" begin
     # GPUArrays is still in Project.toml, to constrain versions
     include("gpu.jl") # this costs just over a second
+end
+
+@init @require OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881" begin
+    using .OffsetArrays
+    may_reshape(::Type{<:OffsetArray{T,N,AT}}) where {T,N,AT} = may_reshape(AT)
 end
 
 end

@@ -432,7 +432,7 @@ using OffsetArrays, Random
 
     # dropdims
     @test axes(transmute(sum(o34, dims = 1), (2,))) == (21:24,)
-    @test_broken transmute(sum(o34, dims = 1), (2,)) isa OffsetArray # issue 23
+    @test transmute(sum(o34, dims = 1), (2,)) isa OffsetArray # issue 23
     o34 .= 1
     @test all(==(3), transmute(sum(o34, dims = 1), (2,))) # issue 24
 
