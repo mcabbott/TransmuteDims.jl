@@ -466,6 +466,22 @@ using Strided
 
 end
 
+using StaticArrays
+@testset "StaticArrays" begin
+
+    m = SMatrix{3,4}(rand(1:99, 3,4))
+    v = SVector{4}(rand(4))
+
+    permutedims(v) isa Base.ReshapedArray
+    @test transmute(v, (2,1)) isa TransmutedDimsArray  # no worse than Base
+
+    permutedims(m) isa MMatrix
+    @test transmute(m, (2,1)) isa SMatrix
+    @test transmutedims(m, (2,1)) isa MMatrix  # this is permutedims?
+
+    transmute(m, (2,3,1)) isa TransmutedDimsArray
+end
+
 if VERSION < v"1.5"
     @warn "skipping tests of GPUArrays"
 else
