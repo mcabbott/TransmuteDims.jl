@@ -509,6 +509,23 @@ else
     end
 end
 
+using Tracker
+@testset "Tracker: $func" for func in [transmute, transmutedims]
+    # subset of the Zygote tests
+
+    @test size(Tracker.gradient(x -> sum(sin, func(x, (2,1))), rand(2,3))[1]) == (2,3)
+    @test size(Tracker.gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3))[1]) == (2,3)
+    @test size(Tracker.gradient(x -> sum(sin, func(x, (2,1,1))), rand(2,3))[1]) == (2,3)
+
+    v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
+
+    fwd, back = Tracker.forward(x -> func(x, (2,1)), v)
+    @test fwd == v'
+    @test back(ones(1,3))[1] == ones(3)
+    @test back(v')[1] == v  # awkward reshape(adjoint)
+
+end
+
 print("... loading Zygote, 🐌 ... ")
 using Zygote
 println("done")
@@ -516,25 +533,25 @@ println("done")
     NEW = VERSION >= v"1.6-"
 
     # sizes, and no errors!
-    @test size(gradient(x -> sum(sin, func(x, (2,1))), rand(2,3))[1]) == (2,3)
-    @test size(gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3))[1]) == (2,3)
-    @test size(gradient(x -> sum(sin, func(x, (2,1,1))), rand(2,3))[1]) == (2,3)
-    NEW && func==transmute && @test size(gradient(x -> sum(sin, func(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (2,1))), rand(2,3))[1]) == (2,3)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3))[1]) == (2,3)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (2,1,1))), rand(2,3))[1]) == (2,3)
+    NEW && func==transmute && @test size(Zygote.gradient(x -> sum(sin, func(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
 
-    @test size(gradient(x -> sum(sin, func(x, (1,))), rand(3,1))[1]) == (3,1)
-    @test size(gradient(x -> sum(sin, func(x, (2,1))), rand(3,1))[1]) == (3,1)
-    NEW || @test size(gradient(x -> sum(sin, func(x, (1,1))), rand(3,1))[1]) == (3,1)
-    NEW && func==transmute && @test size(gradient(x -> sum(sin, func(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (1,))), rand(3,1))[1]) == (3,1)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (2,1))), rand(3,1))[1]) == (3,1)
+    NEW || @test size(Zygote.gradient(x -> sum(sin, func(x, (1,1))), rand(3,1))[1]) == (3,1)
+    NEW && func==transmute && @test size(Zygote.gradient(x -> sum(sin, func(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
 
-    NEW || @test size(gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
-    NEW || @test size(gradient(x -> sum(sin, func(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(Zygote.gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    NEW || @test size(Zygote.gradient(x -> sum(sin, func(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
 
     # values
     v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
 
-    fwd, back = pullback(x -> func(x, (2,1)), v)
+    fwd, back = Zygote.pullback(x -> func(x, (2,1)), v)
     @test fwd == v'
-    @test back(ones(3,1))[1] == ones(3)
+    @test back(ones(1,3))[1] == ones(3)
     @test back(v')[1] == v  # awkward reshape(adjoint)
 
     # extracting diagonals
