@@ -10,7 +10,7 @@ function ChainRulesCore.rrule(::Type{<:TransmutedDimsArray{T,N,P,Q,AT}}, A::Abst
             (NO_FIELDS, _undiagonal(Δ, P, Q), ZeroTangent())
         end
     end
-    function transmute_back(Δ::Composite)
+    function transmute_back(Δ::Tangent)
         (NO_FIELDS, Δ.parent, ZeroTangent())
     end
     B, transmute_back
