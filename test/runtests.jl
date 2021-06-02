@@ -552,15 +552,15 @@ println("done")
     @test size(Zygote.gradient(x -> sum(sin, func(x, (2,1))), rand(2,3))[1]) == (2,3)
     @test size(Zygote.gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3))[1]) == (2,3)
     @test size(Zygote.gradient(x -> sum(sin, func(x, (2,1,1))), rand(2,3))[1]) == (2,3)
-    NEW && func==transmute && @test size(Zygote.gradient(x -> sum(sin, func(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
+    @test_skip  NEW && func==transmute && @test size(Zygote.gradient(x -> sum(sin, func(x, (2,2,3,1,1))), rand(2,3))[1]) == (2,3)
 
     @test size(Zygote.gradient(x -> sum(sin, func(x, (1,))), rand(3,1))[1]) == (3,1)
     @test size(Zygote.gradient(x -> sum(sin, func(x, (2,1))), rand(3,1))[1]) == (3,1)
-    NEW || @test size(Zygote.gradient(x -> sum(sin, func(x, (1,1))), rand(3,1))[1]) == (3,1)
-    NEW && func==transmute && @test size(Zygote.gradient(x -> sum(sin, func(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (1,1))), rand(3,1))[1]) == (3,1)
+    @test_skip  NEW && func==transmute && @test size(Zygote.gradient(x -> sum(sin, func(x, (1,3,1,3))), rand(3,1))[1]) == (3,1)
 
-    NEW || @test size(Zygote.gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
-    NEW || @test size(Zygote.gradient(x -> sum(sin, func(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (2,3,1))), rand(2,3,4))[1]) == (2,3,4)
+    @test size(Zygote.gradient(x -> sum(sin, func(x, (2,4,3,1))), rand(2,3,4))[1]) == (2,3,4)
 
     # values
     v, m, t = rand(1:99, 3), rand(1:99, 3,3), rand(1:99, 3,3,3)
