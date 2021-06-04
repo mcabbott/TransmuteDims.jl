@@ -5,13 +5,13 @@ function ChainRulesCore.rrule(::Type{<:TransmutedDimsArray{T,N,P,Q,AT}}, A::Abst
     B = TransmutedDimsArray{T,N,P,Q,AT}(A)
     function transmute_back(Δ::AbstractArray)
         if unique_or_zero(Val(P))
-            (NO_FIELDS, transmute(Δ, Q), ZeroTangent())
+            (ZeroTangent(), transmute(Δ, Q), ZeroTangent())
         else
-            (NO_FIELDS, _undiagonal(Δ, P, Q), ZeroTangent())
+            (ZeroTangent(), _undiagonal(Δ, P, Q), ZeroTangent())
         end
     end
     function transmute_back(Δ::Tangent)
-        (NO_FIELDS, Δ.parent, ZeroTangent())
+        (ZeroTangent(), Δ.parent, ZeroTangent())
     end
     B, transmute_back
 end
