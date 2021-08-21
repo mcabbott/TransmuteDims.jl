@@ -582,8 +582,8 @@ println("done")
 
 end
 
-if VERSION < v"1.6-"
-    @warn "skipping doctests, on Julia $VERSION"
+if VERSION < v"1.6-" || VERSION > v"1.7-"
+    @warn "skipping doctests, on Julia $VERSION"  # as these have random numbers
 else
     println("... starting Documenter 🗣")
     using Documenter
