@@ -1,5 +1,6 @@
 using TransmuteDims
-using Test, LinearAlgebra, Random
+using ReTest
+using LinearAlgebra, Random
 
 @testset "utils" begin
 
