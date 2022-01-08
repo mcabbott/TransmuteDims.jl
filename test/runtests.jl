@@ -482,47 +482,43 @@ using StaticArrays
     transmute(m, (2,3,1)) isa TransmutedDimsArray
 end
 
-if VERSION < v"1.5"
-    @warn "skipping tests of GPUArrays"
-else
-    using GPUArrays, Adapt
-    GPUArrays.allowscalar(false)
+using GPUArrays, Adapt
+GPUArrays.allowscalar(false)
 
-    jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
-    include(jl_file)
-    using .JLArrays # a fake GPU array, for testing
+jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
+include(jl_file)
+using .JLArrays # a fake GPU array, for testing
 
-    @testset "GPUArrays" begin
+@testset "GPUArrays" begin
 
-        m = rand(4,4)
-        jm = JLArray(m)
-        @test_throws Exception jm[1]  # scalar getindex is disallowed
+    m = rand(4,4)
+    jm = JLArray(m)
+    @test_throws Exception jm[1]  # scalar getindex is disallowed
 
-        tjm = TransmutedDimsArray(jm, (2,1))  # simple wrapper
-        j2 = jm .* log.(tjm) ./ 2
-        @test j2 isa JLArray
-        @test collect(j2) ≈ m .* log.(m') ./ 2
+    tjm = TransmutedDimsArray(jm, (2,1))  # simple wrapper
+    j2 = jm .* log.(tjm) ./ 2
+    @test j2 isa JLArray
+    @test collect(j2) ≈ m .* log.(m') ./ 2
 
-        jmd = transmute(jm, (1,1,2))  # Diagonal-like
-        j3 = jmd .+ 2 .* jmd .+ 1
-        @test j3 isa JLArray
-        @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
+    jmd = transmute(jm, (1,1,2))  # Diagonal-like
+    j3 = jmd .+ 2 .* jmd .+ 1
+    @test j3 isa JLArray
+    @test collect(j3) ≈ 3 .* transmute(m, (1,1,2)) .+ 1
 
-        # printing, without scalar indexing
-        @test sprint(show, jm) isa String
-        io = IOBuffer()
-        Base.print_array(io, jm)
-        @test contains(String(take!(io)), string(m[1]))
+    # printing, without scalar indexing
+    @test sprint(show, jm) isa String
+    io = IOBuffer()
+    Base.print_array(io, jm)
+    @test contains(String(take!(io)), string(m[1]))
 
-        @test jm isa DenseArray  # but reshaping it does not preserve this
-        TransmuteDims.may_reshape(::Type{<:JLArray}) = false
+    @test jm isa DenseArray  # but reshaping it does not preserve this
+    TransmuteDims.may_reshape(::Type{<:JLArray}) = false
 
-        # eager
-        @test transmutedims(jm, (0,1,2)) isa JLArray
-        @test transmutedims(jm, (2,1)) isa JLArray
-        @test_broken transmutedims(jm, (2,0,1)) isa JLArray # permutedims!(dest::Base.ReshapedArray{Float64, 2, JLArray{Float64, 3}, Tuple{}}, src::JLArray{Float64, 2}, perm::Tuple{Int64, Int64})
+    # eager
+    @test transmutedims(jm, (0,1,2)) isa JLArray
+    @test transmutedims(jm, (2,1)) isa JLArray
+    @test_broken transmutedims(jm, (2,0,1)) isa JLArray # permutedims!(dest::Base.ReshapedArray{Float64, 2, JLArray{Float64, 3}, Tuple{}}, src::JLArray{Float64, 2}, perm::Tuple{Int64, Int64})
 
-    end
 end
 
 using Tracker
@@ -583,9 +579,9 @@ println("done")
 end
 
 if VERSION < v"1.6-" || VERSION > v"1.7-"
-    @warn "skipping doctests, on Julia $VERSION"  # as these have random numbers
+    @warn "skipping doctests, on Julia $VERSION"
 else
-    println("... starting Documenter 🗣")
+    println("... starting Documenter 🗣")  # runs only on 1.6 == LTS, uses random numbers
     using Documenter
     @testset "doctests" begin
 

@@ -1,7 +1,7 @@
 name = "TransmuteDims"
 uuid = "24ddb15e-299a-5cc3-8414-dbddc482d9ca"
 authors = ["Michael Abbott"]
-version = "0.1.12"
+version = "0.1.13"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -12,17 +12,17 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 
 [compat]
-Adapt = "2.4, 3.1"
-BenchmarkTools = "0.5"
-ChainRulesCore = "0.10.13, 1"
-Documenter = "0.26"
-GPUArrays = "5.2.1, 6.2, 7, 8"
+Adapt = "3.3"
+BenchmarkTools = "1.2"
+ChainRulesCore = "1.11"
+Documenter = "0.27"
+GPUArrays = "8.1"
 Requires = "1"
 StaticArrays = "1"
-Strided = "1.1.1"
+Strided = "1.1.2"
 Tracker = "0.2.16"
-Zygote = "v0.6.11"
-julia = "1.4"
+Zygote = "v0.6.30"
+julia = "1.6"
 
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
