@@ -563,12 +563,9 @@ include("strided.jl") # this costs about 0.1s
 
 include("chainrules.jl") # this costs about 0.2s
 
-using Requires # without loading anything, this costs about 0.1s
+include("gpu.jl")
 
-@init @require GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7" begin
-    # GPUArrays is still in Project.toml, to constrain versions
-    include("gpu.jl") # this costs just over a second
-end
+using Requires # without loading anything, this costs about 0.1s
 
 @init @require OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881" begin
     using .OffsetArrays

@@ -1,6 +1,6 @@
 #========== GPU etc ==========#
 
-using .GPUArrays
+using GPUArraysCore
 # https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/host/broadcast.jl
 
 using Base.Broadcast
@@ -11,8 +11,25 @@ TransmuteGPU{AT} = TransmutedDimsArray{T,N,P,Q,AT} where {T,N,P,Q}
 BroadcastStyle(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
     BroadcastStyle(AT)
 
-GPUArrays.backend(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
-    GPUArrays.backend(AT)
+GPUArraysCore.backend(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
+    GPUArraysCore.backend(AT)
+
+# https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/device/indexing.jl#L77
+macro linearidx(A, grididx=1, ctxsym=:ctx)
+    quote
+        x = $(esc(A))
+        i = linear_index($(esc(ctxsym)), $(esc(grididx)))
+        i > length(x) && return
+        i
+    end
+end
+macro cartesianidx(A, grididx=1, ctxsym=:ctx)
+    quote
+        x = $(esc(A))
+        i = @linearidx(x, $(esc(grididx)), $(esc(ctxsym)))
+        @inbounds CartesianIndices(x)[i]
+    end
+end
 
 @inline function Base.copyto!(dest::TransmuteGPU{AT}, bc::Broadcasted{Nothing}) where {AT<:AbstractGPUArray}
     axes(dest) == axes(bc) || Broadcast.throwdm(axes(dest), axes(bc))
@@ -41,19 +58,20 @@ end
     copyto!(dest, convert(Broadcasted{Nothing}, bc))
 end
 
+using Adapt
+
 # https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/host/abstractarray.jl#L49
 # display
 Base.print_array(io::IO, X::TransmuteGPU{AT} where {AT <: AbstractGPUArray}) =
-    Base.print_array(io, GPUArrays.convert_to_cpu(X))
+    Base.print_array(io, adapt(ToArray(), X))
 
 Base._show_nonempty(io::IO, X::TransmuteGPU{AT} where {AT <: AbstractGPUArray}, prefix::String) =
-    Base._show_nonempty(io, GPUArrays.convert_to_cpu(X), prefix)
+    Base._show_nonempty(io, adapt(ToArray(), X), prefix)
 Base._show_empty(io::IO, X::TransmuteGPU{AT} where {AT <: AbstractGPUArray}) =
-    Base._show_empty(io, GPUArrays.convert_to_cpu(X))
+    Base._show_empty(io, adapt(ToArray(), X))
 Base.show_vector(io::IO, v::TransmuteGPU{AT} where {AT <: AbstractGPUArray}, args...) =
-    Base.show_vector(io, GPUArrays.convert_to_cpu(X), args...)
+    Base.show_vector(io, adapt(ToArray(), X), args...)
 
-using Adapt  # is this still needed?
 # https://github.com/JuliaGPU/Adapt.jl/blob/master/src/base.jl
 
 function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT}) where {T,N,P,Q,AT}
