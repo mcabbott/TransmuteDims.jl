@@ -86,3 +86,10 @@ The lower-case functions also treat tuples as if they were vectors:
 transmute((1,2,3), (1,)) isa AbstractVector
 transmutedims((1,2,3), (nothing,1)) isa Matrix
 ```
+
+### About
+
+This was written largely for [TensorCast.jl](https://github.com/mcabbott/TensorCast.jl).
+The immediate issue there was that a `reshape(transpose(::GPUArray))` may fail to trigger GPU broadcasting. 
+This package replaces that with at most one wrapper, ideally none.
+Calling `transmute` also allowed `@cast` to express what it needs more cleanly.
