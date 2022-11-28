@@ -207,7 +207,7 @@ function Base.replace_in_print_matrix(A::TransmutedDimsArray,
     is_off_diag(getperm(A), (i,j)) ? Base.replace_with_centered_mark(s) : s
 end
 function Base.replace_in_print_matrix(A::SubArray{<:Any,2,<:TransmutedDimsArray},
-        i::Integer,j::Integer,s::AbstractString) where {S}
+        i::Integer,j::Integer,s::AbstractString)
     ijk = (i, j, A.indices[3:end]...)
     is_off_diag(getperm(A.parent), ijk) ? Base.replace_with_centered_mark(s) : s
 end
