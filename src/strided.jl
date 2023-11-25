@@ -8,8 +8,7 @@ but is unlike the other _transmute methods, which aim to unwrap.
 
 =#
 
-using Strided
-using Strided: StridedView, UnsafeStridedView # @unsafe_strided
+using Strided: Strided, StridedView
 
 @inline function _transmute(A::StridedView{T,M}, P) where {T,M}
     Q = invperm_zero(P, size(A))  # also checks size of dropped dimensions
@@ -44,8 +43,8 @@ with integer-valued A, test the alternative _densecopy_permuted!() path.
     sz = map(d -> d==0 ? 1 : size(A,d), P)
     st = map(d -> d==0 ? 0 : stride(A,d), P)
     if isbitstype(T)
-        _A = UnsafeStridedView(pointer(A), sz, st, 0, identity)
-        _B = UnsafeStridedView(pointer(dst), size(dst), strides(dst), 0, identity)
+        _A = StridedView(pointer(A), sz, st, 0, identity)
+        _B = StridedView(pointer(dst), size(dst), strides(dst), 0, identity)
         _densecopy_strided!(_B, _A)
     else
         # This path may be slower than the default one. Not really tested, either.
