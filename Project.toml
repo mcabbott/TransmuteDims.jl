@@ -12,7 +12,7 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 
 [compat]
-Adapt = "3.3"
+Adapt = "3.3, 4"
 BenchmarkTools = "1.2"
 ChainRulesCore = "1.11"
 Documenter = "0.27"
