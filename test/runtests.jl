@@ -520,8 +520,11 @@ JLArrays.allowscalar(false)
     # eager
     @test transmutedims(jm, (0,1,2)) isa JLArray
     @test transmutedims(jm, (2,1)) isa JLArray
-    @test_broken transmutedims(jm, (2,0,1)) isa JLArray # permutedims!(dest::Base.ReshapedArray{Float64, 2, JLArray{Float64, 3}, Tuple{}}, src::JLArray{Float64, 2}, perm::Tuple{Int64, Int64})
-
+    if VERSION  < v"1.9"  # not a precise bound! This was broken forever, still broken on 1.6 CI
+        @test_broken transmutedims(jm, (2,0,1)) isa JLArray # permutedims!(dest::Base.ReshapedArray{Float64, 2, JLArray{Float64, 3}, Tuple{}}, src::JLArray{Float64, 2}, perm::Tuple{Int64, Int64})
+    else
+        @test transmutedims(jm, (2,0,1)) isa JLArray
+    end
 end
 
 using Tracker

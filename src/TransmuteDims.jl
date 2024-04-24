@@ -82,8 +82,11 @@ Base.axes(A::TransmutedDimsArray{T,N,P}) where {T,N,P} =
 
 Base.similar(A::TransmutedDimsArray, T::Type, dims::Base.Dims) = similar(parent(A), T, dims)
 
+# This was needed on Julia 1.8 or so, but isn't used on 1.11
+# Base.unsafe_convert(::Type{Ptr{T}}, A::TransmutedDimsArray{T}) where {T} =
+#     Base.unsafe_convert(Ptr{T}, parent(A))
 Base.unsafe_convert(::Type{Ptr{T}}, A::TransmutedDimsArray{T}) where {T} =
-    Base.unsafe_convert(Ptr{T}, parent(A))
+    pointer(parent(A))
 
 # It's OK to return a pointer to the first element, and indeed quite
 # useful for wrapping C routines that require a different storage
