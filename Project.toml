@@ -12,17 +12,17 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 
 [compat]
-Adapt = "3, 4"
+Adapt = "3.3, 4"
 BenchmarkTools = "1.2"
 ChainRulesCore = "1.11"
 Documenter = "0.27"
-GPUArraysCore = "0.1.2, 2"
+GPUArraysCore = "0.1.2, 0.2"
 Requires = "1"
 StaticArrays = "1"
 Strided = "2"
 Tracker = "0.2.16"
 Zygote = "0.6.30, 0.7.7"
-julia = "1.6"
+julia = "1.10"
 
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
