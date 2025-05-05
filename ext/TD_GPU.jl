@@ -1,6 +1,9 @@
+module TD_GPU
+
 #========== GPU etc ==========#
 
-using GPUArraysCore
+using TransmuteDims, GPUArraysCore, Adapt
+
 # https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/host/broadcast.jl
 
 using Base.Broadcast
@@ -75,3 +78,5 @@ function Adapt.adapt_structure(to, A::TransmutedDimsArray{T,N,P,Q,AT}) where {T,
     data = adapt(to, A.parent)
     TransmutedDimsArray{eltype(data),N,P,Q,typeof(data)}(data)
 end
+
+end  # module
