@@ -11,9 +11,6 @@ TransmuteGPU{AT} = TransmutedDimsArray{T,N,P,Q,AT} where {T,N,P,Q}
 BroadcastStyle(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
     BroadcastStyle(AT)
 
-GPUArraysCore.backend(::Type{<:TransmuteGPU{AT}}) where {AT<:AbstractGPUArray} =
-    GPUArraysCore.backend(AT)
-
 # https://github.com/JuliaGPU/GPUArrays.jl/blob/master/src/device/indexing.jl#L77
 macro linearidx(A, grididx=1, ctxsym=:ctx)
     quote
