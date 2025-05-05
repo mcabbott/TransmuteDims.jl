@@ -1,5 +1,9 @@
+module TD_Tracker
 
-using .Tracker: @grad, TrackedArray, track, data
+using TransmuteDims, Tracker
+
+using Tracker: @grad, TrackedArray, track, data
+using TransmuteDims: TransmutedDimsArray, unique_or_zero, _undiagonal, getinvperm
 
 TransmutedDimsArray{T,N,P,Q,AT}(A::TrackedArray) where {T,N,P,Q,AT<:AbstractArray} = track(TransmutedDimsArray, A, P)
 
@@ -15,3 +19,5 @@ TransmutedDimsArray{T,N,P,Q,AT}(A::TrackedArray) where {T,N,P,Q,AT<:AbstractArra
     end
     B, transmute_back
 end
+
+end  # module

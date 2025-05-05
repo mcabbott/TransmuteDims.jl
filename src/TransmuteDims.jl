@@ -562,6 +562,8 @@ end
 
 include("base.jl")
 
+#=
+
 include("strided.jl") # this costs about 0.1s
 
 include("chainrules.jl") # this costs about 0.2s
@@ -577,6 +579,33 @@ end
 
 @init @require Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c" begin
     include("tracker.jl")
+end
+
+=#
+
+# This is used by Tracker and ChainRulesCore extensions
+function _undiagonal(Δ::AbstractArray, P::NTuple{N,Int}, Q::NTuple{M,Int}) where {M,N}
+    if P == (1,1) && Q == (2,) && ndims(Δ) == 2
+        return Δ[LinearAlgebra.diagind(Δ)]
+    end
+    axe = map(Q) do q
+        q == 0 ? Base.OneTo(1) : axes(Δ,q)
+    end
+    for d in 1:N
+        if P[d] == 0
+            size(Δ,d) == 1 || throw(DimensionMismatch(
+                "expected size(Δ,$d) == 1, got size(Δ) = $(size(Δ)). P = $P, Q = $Q"))
+        else
+            axes(Δ,d) == axe[P[d]] || throw(DimensionMismatch(
+                "expected axes(Δ,$d) == $(axe[P[d]]), got $(axes(Δ,d)). P = $P, Q = $Q"))
+        end
+    end
+    out = fill!(similar(Δ, axe), 0)
+    @inbounds for I in CartesianIndices(axe)
+        J = CartesianIndex(map(p -> I[p], P))
+        out[I] = Δ[J]
+    end
+    out
 end
 
 end

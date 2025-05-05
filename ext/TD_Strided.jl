@@ -1,3 +1,9 @@
+module TD_Strided
+
+using TransmuteDims, Strided, LinearAlgebra
+
+using TransmuteDims: _transmute, invperm_zero, unique_or_zero  #, _densecopy_strided!
+
 #=
 
 StridedView allows permutations, and gap dimensions, but not Diagonal-like objects.
@@ -10,7 +16,7 @@ but is unlike the other _transmute methods, which aim to unwrap.
 
 using Strided: Strided, StridedView
 
-@inline function _transmute(A::StridedView{T,M}, P) where {T,M}
+@inline function TransmuteDims._transmute(A::StridedView{T,M}, P) where {T,M}
     Q = invperm_zero(P, size(A))  # also checks size of dropped dimensions
     N = length(P)
     if M == N && P == ntuple(identity, N)  # trivial case
@@ -57,3 +63,6 @@ with integer-valued A, test the alternative _densecopy_permuted!() path.
     T = eltype(dst)
     LinearAlgebra.axpby!(one(T), src, zero(T), dst)
 end
+
+
+end  # module
